@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=65.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tatsu"
+description = "An unofficial, async-ready wrapper for the Tatsu API."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+keywords = ["python", "python-3", "tatsu", "tatsu-api"]
+authors = [
+    { name="Sachaa-Thanasius", email="i.like.ike101@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "aiohttp",
+    "msgspec"
+]
+dynamic = ["version"]
+
+[project.urls]
+"Homepage" = "https://github.com/Sachaa-Thanasius/Tatsu"
+"Bug Tracker" = "https://github.com/Sachaa-Thanasius/Tatsu/issues"
+
+[tool.setuptools]
+packages = ["tatsu"]
+
+[tool.setuptools.dynamic]
+version = { attr = "tatsu.__version__" }
+
+[tool.black]
+line-length = 125
+
+[tool.isort]
+profile = "black"
+combine_as_imports = true
+combine_star = true
+line_length = 125
+
+[tool.ruff]
+# todo: Research all of these
+line-length = 120
+target-version = "py310"
+select = [
+    "F", "E", "I", "C90", "UP", "YTT", "ANN", "S", "BLE", "B", "A", "COM", "C4", "DTZ",
+    "EM", "ISC", "G", "INP", "PIE", "T20", "Q003", "RSE", "RET", "SIM", "TID", "PTH",
+    "ERA", "PD", "PLC", "PLE", "PLR", "PLW", "TRY", "NPY", "RUF"
+]
+# todo: decide what to do with S101
+ignore = ["G002", "TRY002", "S101", "PLR2004", "SIM105"]
+unfixable = ["C90", "S101", "ERA"]
