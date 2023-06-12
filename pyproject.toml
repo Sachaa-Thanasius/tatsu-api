@@ -58,5 +58,5 @@ select = [
     "ERA", "PD", "PLC", "PLE", "PLR", "PLW", "TRY", "NPY", "RUF"
 ]
 # todo: decide what to do with S101
-ignore = ["G002", "TRY002", "S101", "PLR2004", "SIM105"]
-unfixable = ["C90", "S101", "ERA"]
+ignore = ["ANN101", "G002", "TRY002", "S101", "PLR2004", "SIM105"]
+unfixable = ["C901", "S101", "ERA"]

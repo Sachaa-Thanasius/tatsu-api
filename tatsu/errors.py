@@ -7,48 +7,80 @@ Exceptions for the Tatsu API.
 
 __all__ = (
     "TatsuException",
-    "TatsuAPIException",
-    "UnknownUser",
-    "UnknownGuild",
-    "UnknownGuildMember",
-    "NotInGuild",
-    "MissingPermission",
-    "InsufficientScore",
-    "InsufficientPoints",
+    "HTTPException",
+    "BadRequest",
+    "Forbidden",
+    "NotFound",
+    "TatsuServerError",
 )
+
+from typing import Any
+
+import aiohttp
 
 
 class TatsuException(Exception):
     """Base exception class for Tatsu."""
 
 
-class TatsuAPIException(TatsuException):
-    """Exception that's raised when Tatsu's API sends back a specific error."""
+class HTTPException(TatsuException):
+    """Exception that's raised when a non-200 HTTP status code is returned.
+
+    Parameters
+    ----------
+    response : :class:`aiohttp.ClientResponse`
+        The HTTP response from the request.
+    message : :class:`str` | dict[:class:`str`, Any], optional
+        The decoded response data.
+
+    Attributes
+    ----------
+    response : :class:`aiohttp.ClientResponse`
+        The HTTP response from the request.
+    status : :class:`int`
+        The HTTP status of the response.
+    code : :class:`int`
+        The Tatsu-specific error code.
+    text : :class:`str`
+        The Tatsu-specific error text.
+    """
+
+    def __init__(self, response: aiohttp.ClientResponse, message: str | dict[str, Any] | None) -> None:
+        self.response = response
+        self.status: int = response.status
+        self.code: int = message.get("code", 0) if isinstance(message, dict) else 0
+        self.text: str = message.get("message", "") if isinstance(message, dict) else (message or "")
+
+        fmt = "{0.status} {0.reason} (error code: {1})"
+        if len(self.text):
+            fmt += ": {2}"
+
+        super().__init__(fmt.format(self.response, self.code, self.text))
 
 
-class UnknownUser(TatsuException):
-    """Exception that's raised when Tatsu can't find a user."""
+class BadRequest(HTTPException):
+    """Exception that's raised when status code 400 occurs.
+
+    Subclass of :exc:`HTTPException`.
+    """
 
 
-class UnknownGuild(TatsuException):
-    """Exception that's raised when Tatsu can't find a guild."""
+class Forbidden(HTTPException):
+    """Exception that's raised when status code 403 occurs.
+
+    Subclass of :exc:`HTTPException`.
+    """
 
 
-class UnknownGuildMember(TatsuException):
-    """Exception that's raised when Tatsu can't find a guild member."""
+class NotFound(HTTPException):
+    """Exception that's raised when status code 404 occurs.
+
+    Subclass of :exc:`HTTPException`.
+    """
 
 
-class NotInGuild(TatsuException):
-    """Exception that's raised when the user isn't in a guild it's attempting to get information about."""
+class TatsuServerError(HTTPException):
+    """Exception that's raised when a 500 range status code occurs.
 
-
-class MissingPermission(TatsuException):
-    """Exception that's raised when the user needs the MANAGE_GUILD permission to do something."""
-
-
-class InsufficientScore(TatsuException):
-    """Exception that's raised when a member doesn't have a high enough score to remove some amount."""
-
-
-class InsufficientPoints(TatsuException):
-    """Exception that's raised when a member doesn't have enough points to remove some amount."""
+    Subclass of :exc:`HTTPException`.
+    """

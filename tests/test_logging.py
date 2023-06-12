@@ -42,16 +42,16 @@ class CustomColourFormatter(logging.Formatter):
         return output
 
 
-def setup_logging():
-    # Create loggers.
-    logging.getLogger("tatsu").setLevel(logging.DEBUG)
+def setup_logging() -> None:
+    # Create logger.
     root_logger = logging.getLogger()
 
     # Add formatter, handler to root logger.
     handler = logging.StreamHandler()
-    # dt_fmt = "%Y-%m-%d %H:%M:%S"
-    # fmt = logging.Formatter("[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{")
     fmt = CustomColourFormatter()
     handler.setFormatter(fmt)
     root_logger.addHandler(handler)
+
+    # Set logger levels.
     root_logger.setLevel(logging.INFO)
+    logging.getLogger("tatsu").setLevel(logging.DEBUG)

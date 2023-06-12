@@ -58,7 +58,7 @@ class GuildMemberScore(Struct):
     user_id: str
 
 
-class GuildMemberRanking(Struct, frozen=True):
+class GuildMemberRanking(Struct):
     """A Discord guild member's ranking information over some period of time.
 
     Attributes
@@ -79,7 +79,7 @@ class GuildMemberRanking(Struct, frozen=True):
     user_id: str
 
 
-class Ranking(Struct, frozen=True):
+class Ranking(Struct):
     """A generic rank information object.
 
     Attributes
@@ -97,7 +97,7 @@ class Ranking(Struct, frozen=True):
     user_id: str
 
 
-class GuildRankings(Struct, frozen=True):
+class GuildRankings(Struct):
     """All the rankings in a guild over some period of time.
 
     Attributes
@@ -112,7 +112,7 @@ class GuildRankings(Struct, frozen=True):
     rankings: list[Ranking] = []
 
 
-class User(Struct, frozen=True):
+class User(Struct):
     """A Tatsu-bot user.
 
     Attributes

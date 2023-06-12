@@ -7,7 +7,6 @@ Enumerations for the Tatsu API.
 
 from enum import Enum
 
-
 __all__ = ("ActionType", "SubscriptionType")
 
 
@@ -26,8 +25,7 @@ class SubscriptionType(Enum):
     SUPPORTER2 = 2
     SUPPORTER3 = 3
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self is SubscriptionType.NONE:
             return "None"
-        else:
-            return self.name.capitalize().replace(self.name[-1], "+" * int(self.name[-1]))
+        return self.name.capitalize().replace(self.name[-1], "+" * int(self.name[-1]))

@@ -11,14 +11,16 @@ import asyncio
 import logging
 import sys
 from collections.abc import Coroutine
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar, Literal
 from urllib.parse import quote, urljoin
 
 import aiohttp
+import msgspec.json
 
 from . import __version__
 from .enums import ActionType
+from .errors import BadRequest, Forbidden, HTTPException, NotFound, TatsuServerError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,7 +81,7 @@ class HTTPClient:
         if self._session and not self._session.closed:
             await self._session.close()
 
-    async def request(self, route: Route, **kwargs) -> bytes:
+    async def request(self, route: Route, **kwargs: Any) -> bytes:
         """|coro|
 
         Send an HTTP request to some endpoint in the Tatsu API.
@@ -105,15 +107,22 @@ class HTTPClient:
         if not self._ratelimit_unlock.is_set():
             await self._ratelimit_unlock.wait()
 
+        response: aiohttp.ClientResponse | None = None
         for _tries in range(5):
             async with self._session.request(method, url, **kwargs) as response:
-                now = datetime.now()
+                now = datetime.now(tz=timezone.utc).astimezone()
                 _LOGGER.debug("%s %s has returned %d.", method, response.url.human_repr(), response.status)
+
+                data = await response.read()
 
                 limit = response.headers.get("X-RateLimit-Limit")
                 remaining = response.headers.get("X-RateLimit-Remaining")
                 reset = response.headers.get("X-RateLimit-Reset")
-                _LOGGER.debug("Rate limit info: limit=%s, remaining=%s, reset=%s", limit, remaining, reset)
+                reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
+
+                msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
+                _LOGGER.debug(msg, limit, remaining, reset, _tries)
+                _LOGGER.debug("Comparison of timestamps (now vs. ratelimit reset time): %s vs %s", now, reset_dt)
 
                 # Check that the reset time for the rate limit makes sense.
                 # Can't check the reset timestamp from the header since it's all relative to the time of first api
@@ -121,6 +130,11 @@ class HTTPClient:
                 # respect. Have to keep track of it locally.
                 if not self._ratelimit_reset_time or self._ratelimit_reset_time < now:
                     self._ratelimit_reset_time = now + timedelta(seconds=61)
+
+                if 300 > response.status >= 200:
+                    return data
+
+                message = msgspec.json.decode(data)
 
                 if response.status == 429:
                     self._ratelimit_unlock.clear()
@@ -135,11 +149,21 @@ class HTTPClient:
                     self._ratelimit_unlock.set()
                     continue
 
-                if response.status not in (200, 429):
-                    response.raise_for_status()
+                if response.status == 400:
+                    raise BadRequest(response, message)
+                if response.status == 403:
+                    raise Forbidden(response, message)
+                if response.status == 404:
+                    raise NotFound(response, message)
+                if response.status >= 500:
+                    raise TatsuServerError(response, message)
 
-                data = await response.read()
-                return data
+                raise HTTPException(response, message)
+
+        if response is not None:
+            _LOGGER.debug("Reached maximum number of retries")
+            raise HTTPException(response, message)
+
         msg = "Unreachable code in HTTP handling."
         raise RuntimeError(msg)
 
@@ -159,14 +183,14 @@ class HTTPClient:
             raise ValueError(msg)
 
         route = Route("PATCH", "guilds/{guild_id}/members/{member_id}/points", guild_id=guild_id, member_id=member_id)
-        json_data = {"action": action, "amount": amount}
-        return self.request(route, json=json_data)
+        data = msgspec.json.encode({"action": action, "amount": amount})
+        return self.request(route, data=data)
 
     def modify_guild_member_score(
             self,
             guild_id: int,
             member_id: int,
-            action: ActionType,
+            action: int,
             amount: int,
     ) -> Coroutine[Any, Any, bytes]:
         if amount < 1 or amount > 100_000:
@@ -174,8 +198,8 @@ class HTTPClient:
             raise ValueError(msg)
 
         route = Route("PATCH", "guilds/{guild_id}/members/{member_id}/score", guild_id=guild_id, member_id=member_id)
-        json_data = {"action": action, "amount": amount}
-        return self.request(route, json=json_data)
+        data = msgspec.json.encode({"action": action, "amount": amount})
+        return self.request(route, data=data)
 
     def get_guild_member_ranking(
             self,

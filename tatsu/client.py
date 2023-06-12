@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 import msgspec
 
@@ -19,7 +19,11 @@ from .http import HTTPClient
 from .types_ import GuildMemberPoints, GuildMemberRanking, GuildMemberScore, GuildRankings, User
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from typing_extensions import Self
+
+    BE = TypeVar("BE", bound=BaseException)
 
 __all__ = ("Client",)
 
@@ -27,7 +31,18 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class Client:
-    """The client that is used to handle interaction with the Tatsu API."""
+    """The client that is used to handle interaction with the Tatsu API.
+
+    Parameters
+    ----------
+    token : :class:`str`
+        The Tatsu API key that will be used to authorize all requests to it.
+
+    Attributes
+    ----------
+    http : :class:`HTTPClient`
+        The library's HTTP client for making requests to the Tatsu API. Initialized with the token.
+    """
 
     def __init__(self, token: str) -> None:
         self.http = HTTPClient(token)
@@ -35,7 +50,7 @@ class Client:
     async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(self, exc_type: type[BE], exc_val: BE, exc_tb: TracebackType) -> None:
         await self.close()
 
     async def close(self) -> None:
@@ -112,7 +127,7 @@ class Client:
         """
 
         action = ActionType.REMOVE if amount < 0 else ActionType.ADD
-        data = await self.http.modify_guild_member_score(guild_id, member_id, action, abs(amount))
+        data = await self.http.modify_guild_member_score(guild_id, member_id, action.value, abs(amount))
         return msgspec.json.decode(data, type=GuildMemberScore)
 
     async def get_member_ranking(
@@ -179,32 +194,35 @@ class Client:
 
         # Check that start and end are valid.
         if start < 1:
-            raise ValueError("Start parameter must be greater than or equal to 1.")
+            msg = "Start parameter must be greater than or equal to 1."
+            raise ValueError(msg)
         if end:
             if end < 1:
-                raise ValueError("End parameter must be greater than or equal to 1.")
+                msg = "End parameter must be greater than or equal to 1."
+                raise ValueError(msg)
             if end <= start:
-                raise ValueError("End must be greater than start if used.")
+                msg = "End must be greater than start if used."
+                raise ValueError(msg)
 
-        # Tatsu API is actually 0-indexed.
-        start -= 1
-        if end is not None:
-            end -= 1
+        start -= 1      # Tatsu API is 0-indexed.
 
+        # Just perform one request.
         if end is None:
             data = await self.http.get_guild_rankings(guild_id, period, offset=start)
             return msgspec.json.decode(data, type=GuildRankings)
-        else:
-            # Iterate through multiple requests asynchronously.
-            coros = [self.http.get_guild_rankings(guild_id, period, offset=offset) for offset in range(start, end, 100)]
-            results = await asyncio.gather(*coros)
-            rankings_list = [msgspec.json.decode(result, type=GuildRankings) for result in results]
-            truncated_rankings = [
-                ranking
-                for ranking in itertools.chain(*[item.rankings for item in rankings_list])
-                if ranking.rank in range(start + 1, end + 2)
-            ]
-            return GuildRankings(guild_id, truncated_rankings)
+
+        end -= 1        # Tatsu API is 0-indexed.
+
+        # Perform multiple requests if necessary and bring the rankings together in one object.
+        coros = [self.http.get_guild_rankings(guild_id, period, offset=offset) for offset in range(start, end, 100)]
+        results = await asyncio.gather(*coros)
+        rankings_list = [msgspec.json.decode(result, type=GuildRankings) for result in results]
+        truncated_rankings = [
+            ranking
+            for ranking in itertools.chain(*[item.rankings for item in rankings_list])
+            if ranking.rank in range(start + 1, end + 2)
+        ]
+        return GuildRankings(guild_id, truncated_rankings)
 
     async def get_user(self, user_id: int) -> User:
         """Get a user's profile.
