@@ -5,18 +5,19 @@ tatsu.errors
 Exceptions for the Tatsu API.
 """
 
+from typing import Any
+
+import aiohttp
+
 __all__ = (
     "TatsuException",
     "HTTPException",
     "BadRequest",
     "Forbidden",
     "NotFound",
+    "RateLimited",
     "TatsuServerError",
 )
-
-from typing import Any
-
-import aiohttp
 
 
 class TatsuException(Exception):
@@ -74,6 +75,13 @@ class Forbidden(HTTPException):
 
 class NotFound(HTTPException):
     """Exception that's raised when status code 404 occurs.
+
+    Subclass of :exc:`HTTPException`.
+    """
+
+
+class RateLimited(HTTPException):
+    """Exception that's raised when status code 429 occurs.
 
     Subclass of :exc:`HTTPException`.
     """

@@ -15,83 +15,89 @@ async def test_get_member_points(client: tatsu.Client, guild_id: int, user_id: i
         result = await client.get_member_points(guild_id, user_id)
     except Exception as err:
         LOGGER.error("", exc_info=err)
+        return None
     else:
         LOGGER.info("%s\n", result)
         return result
 
 
 async def test_modify_member_points(
-        client: tatsu.Client,
-        guild_id: int,
-        user_id: int,
-        amount: int,
+    client: tatsu.Client,
+    guild_id: int,
+    user_id: int,
+    amount: int,
 ) -> tatsu.GuildMemberPoints | None:
     LOGGER.info("---Modify member points.---")
     try:
         result = await client.update_member_points(guild_id, user_id, amount)
     except Exception as err:
         LOGGER.error("", exc_info=err)
+        return None
     else:
         LOGGER.info("%s\n", result)
         return result
 
 
 async def test_modify_member_score(
-        client: tatsu.Client,
-        guild_id: int,
-        user_id: int,
-        amount: int
+    client: tatsu.Client,
+    guild_id: int,
+    user_id: int,
+    amount: int,
 ) -> tatsu.GuildMemberScore | None:
     LOGGER.info("---Modify member score.---")
     try:
         result = await client.update_member_score(guild_id, user_id, amount)
     except Exception as err:
         LOGGER.error("", exc_info=err)
+        return None
     else:
         LOGGER.info("%s\n", result)
         return result
 
 
 async def test_get_member_rankings(
-        client: tatsu.Client,
-        guild_id: int,
-        user_id: int,
-        period: Literal["all", "month", "week"] = "all",
+    client: tatsu.Client,
+    guild_id: int,
+    user_id: int,
+    period: Literal["all", "month", "week"] = "all",
 ) -> tatsu.GuildMemberRanking | None:
     LOGGER.info("---Get member rankings.---")
     try:
         result = await client.get_member_ranking(guild_id, user_id, period)
     except Exception as err:
         LOGGER.error("", exc_info=err)
+        return None
     else:
         LOGGER.info("%s\n", result)
         return result
 
 
 async def test_get_guild_rankings(
-        client: tatsu.Client,
-        guild_id: int,
-        period: Literal["all", "month", "week"] = "all",
-        *,
-        start: int = 1,
-        end: int | None = None,
+    client: tatsu.Client,
+    guild_id: int,
+    period: Literal["all", "month", "week"] = "all",
+    *,
+    start: int = 1,
+    end: int | None = None,
 ) -> tatsu.GuildRankings | None:
     LOGGER.info("---Get guild rankings.---")
     try:
         result = await client.get_guild_rankings(guild_id, period, start=start, end=end)
     except Exception as err:
         LOGGER.error("", exc_info=err)
+        return None
     else:
         LOGGER.info("%s\n", result)
         return result
 
 
-async def test_get_user_profile(client: tatsu.Client, user_id: int) -> tatsu.User:
+async def test_get_user_profile(client: tatsu.Client, user_id: int) -> tatsu.User | None:
     LOGGER.info("---Get user profile.---")
     try:
         result = await client.get_user(user_id)
     except Exception as err:
         LOGGER.error("", exc_info=err)
+        return None
     else:
         LOGGER.info("%s\n", result)
         return result
@@ -102,15 +108,12 @@ async def main() -> None:
 
     setup_logging()
 
-    token = "eUsBHScCkK-L5VVU4dDVMalFl069mwbTk"
-    my_user_id = 158646501696864256  # me
-    aci_guild_id = 602735169090224139  # ACI100
-    panic_guild_id = 801834790768082944
-    not_in_guild_id = 974519864045756446
+    api_key = "API_KEY"
+    my_user_id = 158646501696864256
+    aci_guild_id = 602735169090224139
 
-    async with tatsu.Client(token) as client:
+    async with tatsu.Client(api_key) as client:
         # Test every route.
-        wait_time = 0.7
         """
         await test_get_guild_rankings(client, aci_guild_id, "all", start=114, end=250)
         await asyncio.sleep(wait_time)
@@ -130,16 +133,13 @@ async def main() -> None:
 
         for _ in range(18):
             await test_get_member_points(client, aci_guild_id, my_user_id)
-            # await test_modify_member_points(client, aci_guild_id, my_user_id, 1)
-            # await asyncio.sleep(wait_time)
-            # await test_modify_member_score(client, aci_guild_id, my_user_id, 1)
-            # await asyncio.sleep(wait_time)
+            await test_modify_member_points(client, aci_guild_id, my_user_id, 1)
             await test_get_member_rankings(client, aci_guild_id, my_user_id, "all")
             await test_get_guild_rankings(client, aci_guild_id, "all")
             await test_get_user_profile(client, my_user_id)
 
     LOGGER.info("Exiting...")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.1)
 
 
 if __name__ == "__main__":

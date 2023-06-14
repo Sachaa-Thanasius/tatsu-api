@@ -1,6 +1,6 @@
 """
 tatsu.client
-----------
+------------
 
 The client that serves as the user interface for the Tatsu API.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import logging
-from typing import TYPE_CHECKING, Literal, TypeVar
+from typing import TYPE_CHECKING, Literal
 
 import msgspec
 
@@ -22,8 +22,6 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from typing_extensions import Self
-
-    BE = TypeVar("BE", bound=BaseException)
 
 __all__ = ("Client",)
 
@@ -50,7 +48,7 @@ class Client:
     async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type: type[BE], exc_val: BE, exc_tb: TracebackType) -> None:
+    async def __aexit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         await self.close()
 
     async def close(self) -> None:
@@ -131,10 +129,10 @@ class Client:
         return msgspec.json.decode(data, type=GuildMemberScore)
 
     async def get_member_ranking(
-            self,
-            guild_id: int,
-            member_id: int,
-            period: Literal["all", "month", "week"] = "all",
+        self,
+        guild_id: int,
+        member_id: int,
+        period: Literal["all", "month", "week"] = "all",
     ) -> GuildMemberRanking:
         """|coro|
 
@@ -159,12 +157,12 @@ class Client:
         return msgspec.json.decode(data, type=GuildMemberRanking)
 
     async def get_guild_rankings(
-            self,
-            guild_id: int,
-            period: Literal["all", "month", "week"] = "all",
-            *,
-            start: int = 1,
-            end: int | None = None,
+        self,
+        guild_id: int,
+        period: Literal["all", "month", "week"] = "all",
+        *,
+        start: int = 1,
+        end: int | None = None,
     ) -> GuildRankings:
         """|coro|
 
@@ -204,14 +202,14 @@ class Client:
                 msg = "End must be greater than start if used."
                 raise ValueError(msg)
 
-        start -= 1      # Tatsu API is 0-indexed.
+        start -= 1  # Tatsu API is 0-indexed.
 
         # Just perform one request.
         if end is None:
             data = await self.http.get_guild_rankings(guild_id, period, offset=start)
             return msgspec.json.decode(data, type=GuildRankings)
 
-        end -= 1        # Tatsu API is 0-indexed.
+        end -= 1  # Tatsu API is 0-indexed.
 
         # Perform multiple requests if necessary and bring the rankings together in one object.
         coros = [self.http.get_guild_rankings(guild_id, period, offset=offset) for offset in range(start, end, 100)]

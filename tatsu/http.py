@@ -11,12 +11,12 @@ import asyncio
 import logging
 import sys
 from collections.abc import Coroutine
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, ClassVar, Literal
 from urllib.parse import quote, urljoin
 
 import aiohttp
-import msgspec.json
+import msgspec
 
 from . import __version__
 from .enums import ActionType
@@ -57,11 +57,11 @@ class HTTPClient:
     def __init__(self, token: str, *, session: aiohttp.ClientSession | None = None) -> None:
         self.token = token
         self._session = session
-        user_agent = "Tatsu (https://github.com/Sachaa-Thanasius/Tatsu {0} Python/{1[0]}.{1[1]} aiohttp/{2} (Currently testing in beta, please don't ban me)"
+        user_agent = "Tatsu (https://github.com/Sachaa-Thanasius/Tatsu {0} Python/{1[0]}.{1[1]} aiohttp/{2}"
         self.user_agent = user_agent.format(__version__, sys.version_info, aiohttp.__version__)
         self._ratelimit_unlock = asyncio.Event()
         self._ratelimit_unlock.set()
-        self._ratelimit_reset_time = None
+        self._ratelimit_reset_dt = None
 
     async def _start_session(self) -> None:
         """|coro|
@@ -110,7 +110,6 @@ class HTTPClient:
         response: aiohttp.ClientResponse | None = None
         for _tries in range(5):
             async with self._session.request(method, url, **kwargs) as response:
-                now = datetime.now(tz=timezone.utc).astimezone()
                 _LOGGER.debug("%s %s has returned %d.", method, response.url.human_repr(), response.status)
 
                 data = await response.read()
@@ -121,30 +120,28 @@ class HTTPClient:
                 reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
 
                 msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
-                _LOGGER.debug(msg, limit, remaining, reset, _tries)
-                _LOGGER.debug("Comparison of timestamps (now vs. ratelimit reset time): %s vs %s", now, reset_dt)
+                _LOGGER.debug(msg, limit, remaining, reset_dt, _tries)
 
-                # Check that the reset time for the rate limit makes sense.
-                # Can't check the reset timestamp from the header since it's all relative to the time of first api
-                # call. At least, I think so. The timestamp is a few seconds behind local time, so it's wrong in that
-                # respect. Have to keep track of it locally.
-                if not self._ratelimit_reset_time or self._ratelimit_reset_time < now:
-                    self._ratelimit_reset_time = now + timedelta(seconds=61)
+                if not self._ratelimit_reset_dt or self._ratelimit_reset_dt < reset_dt:
+                    self._ratelimit_reset_dt = reset_dt
 
                 if 300 > response.status >= 200:
+                    # TODO: Add logic for waiting if remaining possible requests in this period
+                    #       is 0, but performing the wait after returning the data.
                     return data
 
                 message = msgspec.json.decode(data)
 
                 if response.status == 429:
+                    now = datetime.now(tz=timezone.utc).astimezone()
                     self._ratelimit_unlock.clear()
                     _LOGGER.debug(
                         "Comparison of timestamps (now vs. ratelimit reset time): %s vs %s",
                         now,
-                        self._ratelimit_reset_time,
+                        self._ratelimit_reset_dt,
                     )
-                    wait_delta = self._ratelimit_reset_time - now
-                    _LOGGER.debug("Hit a rate limit. Waiting for %s seconds.", wait_delta.total_seconds())
+                    wait_delta = self._ratelimit_reset_dt - now
+                    _LOGGER.info("Hit a rate limit. Waiting for %s seconds for reset.", wait_delta.total_seconds())
                     await asyncio.sleep(wait_delta.total_seconds())
                     self._ratelimit_unlock.set()
                     continue
@@ -161,7 +158,7 @@ class HTTPClient:
                 raise HTTPException(response, message)
 
         if response is not None:
-            _LOGGER.debug("Reached maximum number of retries")
+            _LOGGER.debug("Reached maximum number of retries.")
             raise HTTPException(response, message)
 
         msg = "Unreachable code in HTTP handling."
@@ -172,11 +169,11 @@ class HTTPClient:
         return self.request(route)
 
     def modify_guild_member_points(
-            self,
-            guild_id: int,
-            member_id: int,
-            action: ActionType,
-            amount: int,
+        self,
+        guild_id: int,
+        member_id: int,
+        action: ActionType,
+        amount: int,
     ) -> Coroutine[Any, Any, bytes]:
         if amount < 1 or amount > 100_000:
             msg = "Points amount must be between 1 and 100,000."
@@ -187,11 +184,11 @@ class HTTPClient:
         return self.request(route, data=data)
 
     def modify_guild_member_score(
-            self,
-            guild_id: int,
-            member_id: int,
-            action: int,
-            amount: int,
+        self,
+        guild_id: int,
+        member_id: int,
+        action: int,
+        amount: int,
     ) -> Coroutine[Any, Any, bytes]:
         if amount < 1 or amount > 100_000:
             msg = "Score amount must be between 1 and 100,000."
@@ -202,10 +199,10 @@ class HTTPClient:
         return self.request(route, data=data)
 
     def get_guild_member_ranking(
-            self,
-            guild_id: int,
-            user_id: int,
-            period: Literal["all", "month", "week"] = "all",
+        self,
+        guild_id: int,
+        user_id: int,
+        period: Literal["all", "month", "week"] = "all",
     ) -> Coroutine[Any, Any, bytes]:
         route = Route(
             "GET",
@@ -217,11 +214,11 @@ class HTTPClient:
         return self.request(route)
 
     def get_guild_rankings(
-            self,
-            guild_id: int,
-            period: Literal["all", "month", "week"] = "all",
-            *,
-            offset: int = 0,
+        self,
+        guild_id: int,
+        period: Literal["all", "month", "week"] = "all",
+        *,
+        offset: int = 0,
     ) -> Coroutine[Any, Any, bytes]:
         if offset < 0:
             msg = "Pagination offset must be greater than or equal to 0."
