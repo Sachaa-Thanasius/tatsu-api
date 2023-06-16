@@ -16,7 +16,7 @@ import msgspec
 
 from .enums import ActionType
 from .http import HTTPClient
-from .types_ import GuildMemberPoints, GuildMemberRanking, GuildMemberScore, GuildRankings, User
+from .types_ import GuildMemberPoints, GuildMemberRanking, GuildMemberScore, GuildRankings, User, StoreListing
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -238,3 +238,20 @@ class Client:
 
         data = await self.http.get_user_profile(user_id)
         return msgspec.json.decode(data, type=User)
+
+    async def get_store_listing(self, listing_id: str) -> StoreListing:
+        """Get information about a listing from the Tatsu store.
+
+        Parameters
+        ----------
+        listing_id : :class:`int`
+            The ID of the store listing.
+
+        Returns
+        -------
+        :class:`StoreListing`
+            The store listing information.
+        """
+
+        data = await self.http.get_store_listing(listing_id)
+        return msgspec.json.decode(data, type=StoreListing)

@@ -1,5 +1,6 @@
 import asyncio
 
+# You'll need to install these libraries to run this code. You can do so with pip.
 import matplotlib.pyplot as plt
 import numpy as np
 

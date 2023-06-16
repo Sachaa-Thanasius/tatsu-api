@@ -9,6 +9,8 @@ import datetime
 
 from msgspec import Struct
 
+from .enums import CurrencyType, SubscriptionType
+
 __all__ = (
     "GuildMemberPoints",
     "GuildMemberScore",
@@ -16,6 +18,8 @@ __all__ = (
     "Ranking",
     "GuildRankings",
     "User",
+    "StorePrice",
+    "StoreListing",
 )
 
 
@@ -134,7 +138,7 @@ class User(Struct):
     subscription_type : :class:`int`
         The user's subscription type.
     subscription_renewal : :class:`str`, optional
-        The subscription renewal time if the user has a subscription.
+        The subscription renewal time if the user has a subscription. Optional
     title : class:`str`
         The text in the user's title.
     tokens : :class:`int`
@@ -152,9 +156,60 @@ class User(Struct):
     id: str
     info_box: str
     reputation: int
-    subscription_type: int
+    subscription_type: SubscriptionType
     title: str
     tokens: int
     username: str
     xp: int
     subscription_renewal: datetime.datetime | None = None
+
+
+class StorePrice(Struct):
+    """A price of a Tatsu store item.
+
+    Attributes
+    ----------
+    currency : :class:`CurrencyType`
+        The currency type.
+    amount : :class:`float`
+        The cost of the item in the currency.
+    """
+
+    currency: CurrencyType
+    amount: float
+
+
+class StoreListing(Struct):
+    """The listing of a Tatsu store item.
+
+    Attributes
+    ----------
+    id : :class:`str`
+        The ID of the store listing.
+    name : :class:`str
+        The name of the item.
+    summary : :class:`str
+        The summary of the item.
+    description : :class:`str
+        The description of the item.
+    new : :class:`str
+        Whether this is a new item in the store.
+    preview : :class:`str`, optional
+        The URL to an image preview of the item. Optional.
+    prices : list[:class:`StorePrice`], optional
+        The prices for the item. Optional.
+    categories : list[: :class:`str`], optional
+        The categories for the item. Optional
+    tags : list[: :class:`str`], optional
+        The tags for the item. Optional.
+    """
+
+    id: str
+    name: str
+    summary: str
+    description: str
+    new: bool
+    preview: str | None = None
+    prices: list[StorePrice] = []
+    categories: list[str] = []
+    tags: list[str] = []

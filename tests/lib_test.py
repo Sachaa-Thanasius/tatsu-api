@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import pathlib
 from typing import Literal
 
 from test_logging import setup_logging
@@ -103,12 +105,26 @@ async def test_get_user_profile(client: tatsu.Client, user_id: int) -> tatsu.Use
         return result
 
 
+async def test_get_store_listing(client: tatsu.Client, listing_id: str) -> tatsu.StoreListing | None:
+    LOGGER.info("---Get store listing.---")
+    try:
+        result = await client.get_store_listing(listing_id)
+    except Exception as err:
+        LOGGER.error("", exc_info=err)
+        return None
+    else:
+        LOGGER.info("%s\n", result)
+        return result
+
+
 async def main() -> None:
     """Test parts of the library."""
 
     setup_logging()
+    with pathlib.Path(__file__).parents[1].joinpath("config.json").open(encoding="utf-8") as file:
+        data = json.loads(file.read())
+    api_key = data["API_KEY"]
 
-    api_key = "API_KEY"
     my_user_id = 158646501696864256
     aci_guild_id = 602735169090224139
 
@@ -130,13 +146,17 @@ async def main() -> None:
         await test_modify_member_score(client, panic_guild_id, my_user_id, 90_000)
         await asyncio.sleep(wait_time)
         """
-
+        await test_get_user_profile(client, my_user_id)
+        await test_get_store_listing(client, "furni_1x1_antique_chair")
+        await test_get_store_listing(client, "a")
+        """
         for _ in range(18):
             await test_get_member_points(client, aci_guild_id, my_user_id)
             await test_modify_member_points(client, aci_guild_id, my_user_id, 1)
             await test_get_member_rankings(client, aci_guild_id, my_user_id, "all")
             await test_get_guild_rankings(client, aci_guild_id, "all")
             await test_get_user_profile(client, my_user_id)
+        """
 
     LOGGER.info("Exiting...")
     await asyncio.sleep(0.1)

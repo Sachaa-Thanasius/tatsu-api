@@ -113,17 +113,19 @@ class HTTPClient:
                 _LOGGER.debug("%s %s has returned %d.", method, response.url.human_repr(), response.status)
 
                 data = await response.read()
+                _LOGGER.debug(data)
 
-                limit = response.headers.get("X-RateLimit-Limit")
-                remaining = response.headers.get("X-RateLimit-Remaining")
-                reset = response.headers.get("X-RateLimit-Reset")
-                reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
+                if "X-RateLimit-Remaining" in response.headers:
+                    limit = response.headers.get("X-RateLimit-Limit")
+                    remaining = response.headers.get("X-RateLimit-Remaining")
+                    reset = response.headers.get("X-RateLimit-Reset")
+                    reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
 
-                msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
-                _LOGGER.debug(msg, limit, remaining, reset_dt, _tries)
+                    msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
+                    _LOGGER.debug(msg, limit, remaining, reset_dt, _tries)
 
-                if not self._ratelimit_reset_dt or self._ratelimit_reset_dt < reset_dt:
-                    self._ratelimit_reset_dt = reset_dt
+                    if not self._ratelimit_reset_dt or self._ratelimit_reset_dt < reset_dt:
+                        self._ratelimit_reset_dt = reset_dt
 
                 if 300 > response.status >= 200:
                     # TODO: Add logic for waiting if remaining possible requests in this period
@@ -230,4 +232,8 @@ class HTTPClient:
 
     def get_user_profile(self, user_id: int) -> Coroutine[Any, Any, bytes]:
         route = Route("GET", "users/{user_id}/profile", user_id=user_id)
+        return self.request(route)
+
+    def get_store_listing(self, listing_id: str) -> Coroutine[Any, Any, bytes]:
+        route = Route("GET", "store/listings/{listing_id}", listing_id=listing_id)
         return self.request(route)
