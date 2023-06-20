@@ -115,21 +115,26 @@ class HTTPClient:
                 data = await response.read()
                 _LOGGER.debug(data)
 
-                if "X-RateLimit-Remaining" in response.headers:
-                    limit = response.headers.get("X-RateLimit-Limit")
-                    remaining = response.headers.get("X-RateLimit-Remaining")
-                    reset = response.headers.get("X-RateLimit-Reset")
-                    reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
+                limit = response.headers.get("X-RateLimit-Limit")
+                remaining = response.headers.get("X-RateLimit-Remaining")
+                reset = response.headers.get("X-RateLimit-Reset")
+                reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
 
-                    msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
-                    _LOGGER.debug(msg, limit, remaining, reset_dt, _tries)
+                msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
+                _LOGGER.debug(msg, limit, remaining, reset_dt, _tries)
 
-                    if not self._ratelimit_reset_dt or self._ratelimit_reset_dt < reset_dt:
-                        self._ratelimit_reset_dt = reset_dt
+                if not self._ratelimit_reset_dt or self._ratelimit_reset_dt < reset_dt:
+                    self._ratelimit_reset_dt = reset_dt
+
+                if response.status != 429 and remaining == "0":
+                    now = datetime.now(tz=timezone.utc).astimezone()
+                    self._ratelimit_unlock.clear()
+                    wait_delta = self._ratelimit_reset_dt - now
+                    _LOGGER.info("Emptied the ratelimit. Waiting for %s seconds for reset.", wait_delta.total_seconds())
+                    await asyncio.sleep(wait_delta.total_seconds())
+                    self._ratelimit_unlock.set()
 
                 if 300 > response.status >= 200:
-                    # TODO: Add logic for waiting if remaining possible requests in this period
-                    #       is 0, but performing the wait after returning the data.
                     return data
 
                 message = msgspec.json.decode(data)

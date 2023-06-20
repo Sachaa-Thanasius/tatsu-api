@@ -40,13 +40,13 @@ packages = ["tatsu"]
 version = { attr = "tatsu.__version__" }
 
 [tool.black]
-line-length = 125
+line-length = 120
 
 [tool.isort]
 profile = "black"
 combine_as_imports = true
 combine_star = true
-line_length = 125
+line_length = 120
 
 [tool.ruff]
 line-length = 120

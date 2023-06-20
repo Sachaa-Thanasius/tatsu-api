@@ -16,7 +16,7 @@ import msgspec
 
 from .enums import ActionType
 from .http import HTTPClient
-from .types_ import GuildMemberPoints, GuildMemberRanking, GuildMemberScore, GuildRankings, User, StoreListing
+from .types_ import GuildMemberPoints, GuildMemberRanking, GuildMemberScore, GuildRankings, StoreListing, User
 
 if TYPE_CHECKING:
     from types import TracebackType
