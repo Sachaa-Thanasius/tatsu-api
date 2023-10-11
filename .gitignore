@@ -231,4 +231,7 @@ fabric.properties
 
 # Ruff
 .ruff_cache
+
+# Project-specific
 config.json
+.pypirc
