@@ -148,7 +148,7 @@ async def main() -> None:
         await test_modify_member_score(client, panic_guild_id, my_user_id, 90_000)
         await asyncio.sleep(wait_time)
         """
-        for _ in range(23):
+        for _ in range(27):
             await test_get_user_profile(client, my_user_id)
             await test_get_store_listing(client, "furni_1x1_antique_chair")
             await test_get_store_listing(client, "a")

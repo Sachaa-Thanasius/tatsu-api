@@ -15,10 +15,10 @@ Uploading to PyPI is being considered. For now, to install the library, run the 
 
 ```shell
 # Linux/macOS
-python3 -m pip install -U git+https://github.com/Sachaa-Thanasius/Tatsu
+python3 -m pip install -U git+https://github.com/Sachaa-Thanasius/Tatsu@main
 
 # Windows
-py -3 -m pip install -U git+https://github.com/Sachaa-Thanasius/Tatsu
+py -3 -m pip install -U git+https://github.com/Sachaa-Thanasius/Tatsu@main
 ```
 
 ## Quick Example

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=65.0"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,29 +10,32 @@ license = { file = "LICENSE" }
 requires-python = ">=3.8"
 version = "0.0.1"
 keywords = ["python", "python-3", "tatsu", "tatsu-api"]
-authors = [{ name = "Sachaa-Thanasius", email = "i.like.ike101@gmail.com" }]
+authors = [{ name = "Sachaa-Thanasius", email = "111999343+Sachaa-Thanasius@users.noreply.github.com" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Framework :: aiohttp",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Internet",
+    "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
     "Typing :: Typed",
 ]
-dynamic = ["dependencies"]
+dependencies = ["aiohttp>=3.8", "msgspec"]
+
+[project.optional-dependencies]
+speed = ["aiodns>=1.1", "Brotli", "cchardet"]
 
 [project.urls]
 Homepage = "https://github.com/Sachaa-Thanasius/Tatsu"
 "Bug Tracker" = "https://github.com/Sachaa-Thanasius/Tatsu/issues"
-
-[tool.setuptools]
-packages = ["tatsu"]
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
 
 [tool.black]
 line-length = 120
@@ -40,6 +43,7 @@ target-version = ["py38", "py39", "py310", "py311"]
 
 [tool.ruff]
 line-length = 120
+target-version = "py38"
 select = [
     "F",
     "E",
@@ -79,7 +83,7 @@ ignore = [
     "G002",    # Erroneous issue with %-logging when logging can be configured for % logging.
     "S101",    # Use of assert here is a known quantity. Blame typing memes.
     "PLR2004", # Magic value comparison. May remove later.
-    "SIM105",  # Suppressable exception. I'm not paying the overhead of contextlib.supress for stylistic choices.
+    "SIM105",  # Suppressable exception. I'm not paying the overhead of contextlib.suppress for stylistic choices.
     "C90",     # McCabe complexity memes.
     "PLR0913", # Some functions require more than 5 arguments.
     "PLR0915", # Some functions require more than 50 lines.
@@ -100,7 +104,10 @@ unfixable = [
     "F403",    # Undefined import with star
     "PLC0414", # Import alias does not rename original package
 ]
-"examples/*.py" = ["INP001", "T201"] # Leave the examples folder alone.
+"examples/*.py" = [ # Leave the examples folder alone.
+    "INP001",
+    "T201",
+]
 
 [tool.ruff.isort]
 lines-after-imports = 2
@@ -113,5 +120,4 @@ venv = ".venv"
 
 pythonVersion = "3.8"
 typeCheckingMode = "strict"
-reportMissingTypeStubs = "warning"
 reportUnnecessaryTypeIgnoreComment = "warning"
