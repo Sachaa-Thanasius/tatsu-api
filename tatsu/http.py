@@ -1,10 +1,3 @@
-"""
-tatsu.http
-----------
-
-The HTTP routes, requests, and response handlers for the Tatsu API.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -12,15 +5,15 @@ import logging
 import sys
 from collections.abc import Coroutine
 from datetime import datetime, timezone
+from importlib import metadata
 from typing import Any, ClassVar, Literal
-from urllib.parse import quote, urljoin
+from urllib.parse import quote as uriquote, urljoin
 
 import aiohttp
-import msgspec
 
-from . import __version__
-from .enums import ActionType
 from .errors import BadRequest, Forbidden, HTTPException, NotFound, TatsuServerError
+from .hooks import GEN_DECODER, GEN_ENCODER
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,11 +23,11 @@ class Route:
 
     Parameters
     ----------
-    method : :class:`str`
+    method: :class:`str`
         The HTTP request to make, e.g. ``"GET"``.
-    path : :class:`str`
+    path: :class:`str`
         The prepended path to the API endpoint you want to hit, e.g. ``"/user/{user_id}/profile"``.
-    **parameters : Any
+    **parameters: Any
         Special keyword arguments that will be substituted into the corresponding spot in the `path` where the key is
         present, e.g. if your parameters are ``user_id=1234`` and your path is``"user/{user_id}/profile"``, the path
         will become ``"user/1234/profile"``.
@@ -47,7 +40,7 @@ class Route:
         self.path = path
         url = urljoin(self.BASE, path)
         if parameters:
-            url = url.format_map({k: quote(v) if isinstance(v, str) else v for k, v in parameters.items()})
+            url = url.format_map({k: uriquote(v) if isinstance(v, str) else v for k, v in parameters.items()})
         self.url = url
 
 
@@ -58,7 +51,7 @@ class HTTPClient:
         self.token = token
         self._session = session
         user_agent = "Tatsu (https://github.com/Sachaa-Thanasius/Tatsu {0} Python/{1[0]}.{1[1]} aiohttp/{2}"
-        self.user_agent = user_agent.format(__version__, sys.version_info, aiohttp.__version__)
+        self.user_agent = user_agent.format(metadata.version("tatsu"), sys.version_info, metadata.version("aiohttp"))
         self._ratelimit_unlock = asyncio.Event()
         self._ratelimit_unlock.set()
         self._ratelimit_reset_dt = None
@@ -94,30 +87,29 @@ class HTTPClient:
             Arbitrary keyword arguments for :meth:`aiohttp.ClientSession.request`. See that method for more information.
         """
 
-        method = route.method
-        url = route.url
-
         headers = kwargs.pop("headers", {})
         headers["User-Agent"] = self.user_agent
         headers["Authorization"] = self.token
         kwargs["headers"] = headers
 
         await self._start_session()
+        assert self._session
 
         if not self._ratelimit_unlock.is_set():
             await self._ratelimit_unlock.wait()
 
         response: aiohttp.ClientResponse | None = None
+        message: str | dict[str, Any] | None = None
         for _tries in range(5):
-            async with self._session.request(method, url, **kwargs) as response:
-                _LOGGER.debug("%s %s has returned %d.", method, response.url.human_repr(), response.status)
+            async with self._session.request(route.method, route.url, **kwargs) as response:
+                _LOGGER.debug("%s %s has returned %d.", route.method, response.url.human_repr(), response.status)
 
                 data = await response.read()
                 _LOGGER.debug(data)
 
                 limit = response.headers.get("X-RateLimit-Limit")
                 remaining = response.headers.get("X-RateLimit-Remaining")
-                reset = response.headers.get("X-RateLimit-Reset")
+                reset = response.headers.get("X-RateLimit-Reset", 0.0)
                 reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
 
                 msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
@@ -137,7 +129,7 @@ class HTTPClient:
                 if 300 > response.status >= 200:
                     return data
 
-                message = msgspec.json.decode(data)
+                message = GEN_DECODER.decode(data)
 
                 if response.status == 429:
                     now = datetime.now(tz=timezone.utc).astimezone()
@@ -179,15 +171,12 @@ class HTTPClient:
         self,
         guild_id: int,
         member_id: int,
-        action: ActionType,
+        action: int,
         amount: int,
     ) -> Coroutine[Any, Any, bytes]:
-        if amount < 1 or amount > 100_000:
-            msg = "Points amount must be between 1 and 100,000."
-            raise ValueError(msg)
-
+        # Note: Points amount cannot be more than 100,000.
         route = Route("PATCH", "guilds/{guild_id}/members/{member_id}/points", guild_id=guild_id, member_id=member_id)
-        data = msgspec.json.encode({"action": action, "amount": amount})
+        data = GEN_ENCODER.encode({"action": action, "amount": amount})
         return self.request(route, data=data)
 
     def modify_guild_member_score(
@@ -197,12 +186,9 @@ class HTTPClient:
         action: int,
         amount: int,
     ) -> Coroutine[Any, Any, bytes]:
-        if amount < 1 or amount > 100_000:
-            msg = "Score amount must be between 1 and 100,000."
-            raise ValueError(msg)
-
+        # Note: Score amount cannot be more than 100,000.
         route = Route("PATCH", "guilds/{guild_id}/members/{member_id}/score", guild_id=guild_id, member_id=member_id)
-        data = msgspec.json.encode({"action": action, "amount": amount})
+        data = GEN_ENCODER.encode({"action": action, "amount": amount})
         return self.request(route, data=data)
 
     def get_guild_member_ranking(
@@ -227,10 +213,7 @@ class HTTPClient:
         *,
         offset: int = 0,
     ) -> Coroutine[Any, Any, bytes]:
-        if offset < 0:
-            msg = "Pagination offset must be greater than or equal to 0."
-            raise ValueError(msg)
-
+        # Note: Pagination offset must be greater than or equal to 0.
         route = Route("GET", "guilds/{guild_id}/rankings/{time_range}", guild_id=guild_id, time_range=period)
         params = {"offset": offset}
         return self.request(route, params=params)

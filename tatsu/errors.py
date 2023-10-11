@@ -1,13 +1,9 @@
-"""
-tatsu.errors
-------------
-
-Exceptions for the Tatsu API.
-"""
+from __future__ import annotations
 
 from typing import Any
 
 import aiohttp
+
 
 __all__ = (
     "TatsuException",
@@ -29,20 +25,20 @@ class HTTPException(TatsuException):
 
     Parameters
     ----------
-    response : :class:`aiohttp.ClientResponse`
+    response: :class:`aiohttp.ClientResponse`
         The HTTP response from the request.
-    message : :class:`str` | dict[:class:`str`, Any], optional
+    message: :class:`str` | dict[:class:`str`, Any], optional
         The decoded response data.
 
     Attributes
     ----------
-    response : :class:`aiohttp.ClientResponse`
+    response: :class:`aiohttp.ClientResponse`
         The HTTP response from the request.
-    status : :class:`int`
+    status: :class:`int`
         The HTTP status of the response.
-    code : :class:`int`
+    code: :class:`int`
         The Tatsu-specific error code.
-    text : :class:`str`
+    text: :class:`str`
         The Tatsu-specific error text.
     """
 

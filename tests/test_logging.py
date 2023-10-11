@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from typing import ClassVar
 
 
 class CustomColourFormatter(logging.Formatter):
@@ -9,7 +12,7 @@ class CustomColourFormatter(logging.Formatter):
     https://github.com/Rapptz/discord.py/blob/master/discord/utils.py#L1262
     """
 
-    LEVEL_COLOURS = [
+    LEVEL_COLOURS: ClassVar[list[tuple[int, str]]] = [
         (logging.DEBUG, "\x1b[40;1m"),
         (logging.INFO, "\x1b[34;1m"),
         (logging.WARNING, "\x1b[33;1m"),
@@ -17,7 +20,7 @@ class CustomColourFormatter(logging.Formatter):
         (logging.CRITICAL, "\x1b[41m"),
     ]
 
-    FORMATS = {
+    FORMATS: ClassVar[dict[int, logging.Formatter]] = {
         level: logging.Formatter(
             f"\x1b[30;1m%(asctime)s\x1b[0m {colour}%(levelname)-8s\x1b[0m \x1b[35m%(name)s\x1b[0m %(message)s",
             "%Y-%m-%d %H:%M:%S",

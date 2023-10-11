@@ -1,13 +1,11 @@
-"""
-tatsu.enums
------------
-
-Enumerations for the Tatsu API.
-"""
-
 from enum import Enum
 
-__all__ = ("ActionType", "SubscriptionType", "CurrencyType")
+
+__all__ = (
+    "ActionType",
+    "SubscriptionType",
+    "CurrencyType",
+)
 
 
 class ActionType(Enum):

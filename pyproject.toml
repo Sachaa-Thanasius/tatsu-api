@@ -7,54 +7,109 @@ name = "tatsu"
 description = "An unofficial, async-ready wrapper for the Tatsu API."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.8"
+version = "0.0.1"
 keywords = ["python", "python-3", "tatsu", "tatsu-api"]
-authors = [
-    { name="Sachaa-Thanasius", email="i.like.ike101@gmail.com"}
-]
+authors = [{ name = "Sachaa-Thanasius", email = "i.like.ike101@gmail.com" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.8",
     "Topic :: Internet",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-dependencies = [
-    "aiohttp",
-    "msgspec"
-]
-dynamic = ["version"]
+dynamic = ["dependencies"]
 
 [project.urls]
-"Homepage" = "https://github.com/Sachaa-Thanasius/Tatsu"
+Homepage = "https://github.com/Sachaa-Thanasius/Tatsu"
 "Bug Tracker" = "https://github.com/Sachaa-Thanasius/Tatsu/issues"
 
 [tool.setuptools]
 packages = ["tatsu"]
 
 [tool.setuptools.dynamic]
-version = { attr = "tatsu.__version__" }
+dependencies = { file = ["requirements.txt"] }
 
 [tool.black]
 line-length = 120
-
-[tool.isort]
-profile = "black"
-combine_as_imports = true
-combine_star = true
-line_length = 120
+target-version = ["py38", "py39", "py310", "py311"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
 select = [
-    "F", "E", "I", "C90", "UP", "YTT", "ANN", "S", "BLE", "B", "A", "COM", "C4", "DTZ",
-    "EM", "ISC", "G", "INP", "PIE", "T20", "Q003", "RSE", "RET", "SIM", "TID", "PTH",
-    "ERA", "PD", "PLC", "PLE", "PLR", "PLW", "TRY", "NPY", "RUF"
+    "F",
+    "E",
+    "I",
+    "C90",
+    "UP",
+    "YTT",
+    "ANN",
+    "S",
+    "BLE",
+    "B",
+    "A",
+    "COM",
+    "C4",
+    "DTZ",
+    "EM",
+    "ISC",
+    "G",
+    "INP",
+    "PIE",
+    "T20",
+    "Q003",
+    "RSE",
+    "RET",
+    "SIM",
+    "TID",
+    "PTH",
+    "ERA",
+    "PLC",
+    "PLE",
+    "PLR",
+    "PLW",
+    "TRY",
+    "RUF",
 ]
-ignore = ["ANN101", "G002", "TRY002", "S101", "PLR2004", "SIM105", "C90"]
-unfixable = ["C90", "S101", "ERA"]
+ignore = [
+    "G002",    # Erroneous issue with %-logging when logging can be configured for % logging.
+    "S101",    # Use of assert here is a known quantity. Blame typing memes.
+    "PLR2004", # Magic value comparison. May remove later.
+    "SIM105",  # Suppressable exception. I'm not paying the overhead of contextlib.supress for stylistic choices.
+    "C90",     # McCabe complexity memes.
+    "PLR0913", # Some functions require more than 5 arguments.
+    "PLR0915", # Some functions require more than 50 lines.
+    "ANN101",  # Python310 doesn't have Self in typing, so I'm not using it everywhere for self.
+    "ANN102",  # Same deal as ANN101, but for cls.
+    "ANN401",  # Need Any for args and kwargs in some places.
+    "A003",    # Shadowing some builtin names in some places.
+    "PD",      # Pandas isn't relevant for this project.
+    "NPY",     # Numpy isn't relevant for this project.
+]
+unfixable = [
+    "ERA",     # I don't want anything erroneously detected deleted by this.
+    "PLC0414", # This causes issues when declaring module imports in __init__ files. Disallow deletion.
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = [
+    "F403",    # Undefined import with star
+    "PLC0414", # Import alias does not rename original package
+]
+"examples/*.py" = ["INP001", "T201"] # Leave the examples folder alone.
+
+[tool.ruff.isort]
+lines-after-imports = 2
+combine-as-imports = true
+
+[tool.pyright]
+include = ["tatsu"]
+
+pythonVersion = "3.8"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"

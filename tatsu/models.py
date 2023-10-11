@@ -1,15 +1,11 @@
-"""
-tatsu.types_
-------------
-
-Typings/data structures for the Tatsu API.
-"""
+from __future__ import annotations
 
 import datetime
 
-from msgspec import Struct
+import msgspec
 
 from .enums import CurrencyType, SubscriptionType
+
 
 __all__ = (
     "GuildMemberPoints",
@@ -23,18 +19,18 @@ __all__ = (
 )
 
 
-class GuildMemberPoints(Struct):
+class GuildMemberPoints(msgspec.Struct):
     """A Discord guild member's points information.
 
     Parameters
     ----------
-    guild_id : :class:`str`
+    guild_id: :class:`str`
         The Discord ID of the guild.
-    points : :class:`int`
+    points: :class:`int`
         The user's points.
-    rank : :class:`int`
+    rank: :class:`int`
         The user's rank based on their points.
-    user_id : :class:`str`
+    user_id: :class:`str`
         The user's Discord ID.
     """
 
@@ -44,16 +40,16 @@ class GuildMemberPoints(Struct):
     user_id: str
 
 
-class GuildMemberScore(Struct):
+class GuildMemberScore(msgspec.Struct):
     """A Discord guild member's score information.
 
     Parameters
     ----------
-    guild_id : :class:`str`
+    guild_id: :class:`str`
         The Discord ID of the guild.
-    score : :class:`int`
+    score: :class:`int`
         The user's score.
-    user_id : :class:`str`
+    user_id: :class:`str`
         The user's Discord ID.
     """
 
@@ -62,18 +58,18 @@ class GuildMemberScore(Struct):
     user_id: str
 
 
-class GuildMemberRanking(Struct):
+class GuildMemberRanking(msgspec.Struct):
     """A Discord guild member's ranking information over some period of time.
 
     Attributes
     ----------
-    guild_id : :class:`str`
+    guild_id: :class:`str`
         The Discord ID of the guild.
-    rank : :class:`int`
+    rank: :class:`int`
         The user's rank.
-    score : :class:`int`
+    score: :class:`int`
         The user's score.
-    user_id : :class:`str`
+    user_id: :class:`str`
         The user's Discord ID.
     """
 
@@ -83,16 +79,16 @@ class GuildMemberRanking(Struct):
     user_id: str
 
 
-class Ranking(Struct):
+class Ranking(msgspec.Struct):
     """A generic rank information object.
 
     Attributes
     ----------
-    rank : :class:`int`
+    rank: :class:`int`
         The user's rank.
-    score : :class:`int`
+    score: :class:`int`
         The user's score.
-    user_id : :class:`str`
+    user_id: :class:`str`
         The user's Discord ID.
     """
 
@@ -101,51 +97,51 @@ class Ranking(Struct):
     user_id: str
 
 
-class GuildRankings(Struct):
+class GuildRankings(msgspec.Struct):
     """All the rankings in a guild over some period of time.
 
     Attributes
     ----------
-    guild_id : :class:`str`
+    guild_id: :class:`str`
         The Discord ID of the guild.
-    rankings : list[:class:`Ranking`]
+    rankings: list[:class:`Ranking`]
         The rankings.
     """
 
     guild_id: str
-    rankings: list[Ranking] = []
+    rankings: list[Ranking] = msgspec.field(default_factory=list)
 
 
-class User(Struct):
+class User(msgspec.Struct):
     """A Tatsu-bot user.
 
     Attributes
     ----------
-    avatar_hash : class:`str`
+    avatar_hash: class:`str`
         The user's Discord avatar hash.
-    avatar_url : class:`str`
+    avatar_url: class:`str`
         The user's Discord avatar URL.
-    credits : :class:`int`
+    credits: :class:`int`
         The amount of credits the user has.
-    discriminator : class:`str`
+    discriminator: class:`str`
         The user's 4 digit discriminator.
-    id : class:`str`
+    id: class:`str`
         The user's Discord ID.
-    info_box : class:`str`
+    info_box: class:`str`
         The text in the user's info box.
-    reputation : :class:`int`
+    reputation: :class:`int`
         The number of reputation points the user has.
-    subscription_type : :class:`int`
+    subscription_type: :class:`int`
         The user's subscription type.
-    subscription_renewal : :class:`str`, optional
+    subscription_renewal: :class:`str`, optional
         The subscription renewal time if the user has a subscription. Optional
-    title : class:`str`
+    title: class:`str`
         The text in the user's title.
-    tokens : :class:`int`
+    tokens: :class:`int`
         The amount of tokens the user has.
-    username : class:`str`
+    username: class:`str`
         The user's Discord username.
-    xp : :class:`int`
+    xp: :class:`int`
         The number of experience points the user has.
     """
 
@@ -164,14 +160,14 @@ class User(Struct):
     subscription_renewal: datetime.datetime | None = None
 
 
-class StorePrice(Struct):
+class StorePrice(msgspec.Struct):
     """A price of a Tatsu store item.
 
     Attributes
     ----------
-    currency : :class:`CurrencyType`
+    currency: :class:`CurrencyType`
         The currency type.
-    amount : :class:`float`
+    amount: :class:`float`
         The cost of the item in the currency.
     """
 
@@ -179,28 +175,28 @@ class StorePrice(Struct):
     amount: float
 
 
-class StoreListing(Struct):
+class StoreListing(msgspec.Struct):
     """The listing of a Tatsu store item.
 
     Attributes
     ----------
-    id : :class:`str`
+    id: :class:`str`
         The ID of the store listing.
-    name : :class:`str
+    name: :class:`str
         The name of the item.
-    summary : :class:`str
+    summary: :class:`str
         The summary of the item.
-    description : :class:`str
+    description: :class:`str
         The description of the item.
-    new : :class:`str
+    new: :class:`str
         Whether this is a new item in the store.
-    preview : :class:`str`, optional
+    preview: :class:`str`, optional
         The URL to an image preview of the item. Optional.
-    prices : list[:class:`StorePrice`], optional
+    prices: list[:class:`StorePrice`], optional
         The prices for the item. Optional.
-    categories : list[: :class:`str`], optional
+    categories: list[: :class:`str`], optional
         The categories for the item. Optional
-    tags : list[: :class:`str`], optional
+    tags: list[: :class:`str`], optional
         The tags for the item. Optional.
     """
 
@@ -210,6 +206,6 @@ class StoreListing(Struct):
     description: str
     new: bool
     preview: str | None = None
-    prices: list[StorePrice] = []
-    categories: list[str] = []
-    tags: list[str] = []
+    prices: list[StorePrice] = msgspec.field(default_factory=list)
+    categories: list[str] = msgspec.field(default_factory=list)
+    tags: list[str] = msgspec.field(default_factory=list)

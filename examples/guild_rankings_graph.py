@@ -31,7 +31,7 @@ async def main() -> None:
             colors = np.concatenate((np.tile(raw_colors, length), np.array(raw_colors[:leftover])))
 
             # Plot the data with matplotlib.
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()  # type: ignore
             ax.scatter(x, y, c=colors)
             ax.set_xlabel("Ranks")
             ax.set_ylabel("Scores")
@@ -41,7 +41,7 @@ async def main() -> None:
                 ax.set_title(base_title + "\nover the Last Month")
             else:
                 ax.set_title(base_title + "\nover the Last Week")
-            plt.show()
+            plt.show()  # type: ignore
 
     await asyncio.sleep(0.1)
 
