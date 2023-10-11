@@ -1,4 +1,9 @@
 # Tatsu
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Checked with pyright](https://img.shields.io/badge/pyright-checked-informational.svg)](https://github.com/microsoft/pyright/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+
 A lightweight and asynchronous wrapper for [Tatsu v1 API](https://tatsu.gg), written in Python. Supports every documented API endpoint.
 
 Shoutout to the [discord.py](https://github.com/Rapptz/discord.py) wrapper for being an inspiration and providing a strong example for implementation.
@@ -47,3 +52,5 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
+
+Take a look at the [examples](./examples/) directory for more.

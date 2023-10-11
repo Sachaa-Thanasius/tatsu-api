@@ -108,6 +108,8 @@ combine-as-imports = true
 
 [tool.pyright]
 include = ["tatsu"]
+venvPath = "."
+venv = ".venv"
 
 pythonVersion = "3.8"
 typeCheckingMode = "strict"
