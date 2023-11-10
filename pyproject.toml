@@ -34,8 +34,8 @@ dependencies = ["aiohttp>=3.8", "msgspec"]
 speed = ["aiodns>=1.1", "Brotli", "cchardet"]
 
 [project.urls]
-Homepage = "https://github.com/Sachaa-Thanasius/Tatsu"
-"Bug Tracker" = "https://github.com/Sachaa-Thanasius/Tatsu/issues"
+Homepage = "https://github.com/Sachaa-Thanasius/tatsu-api"
+"Bug Tracker" = "https://github.com/Sachaa-Thanasius/tatsu-api/issues"
 
 [tool.setuptools]
 packages = ["tatsu_api"]
