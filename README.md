@@ -1,30 +1,37 @@
-# Tatsu
-[![License: MIT](https://img.shields.io/github/license/Sachaa-Thanasius/Tatsu.svg)](https://opensource.org/licenses/MIT)
+# Tatsu API Wrapper
+[![PyPI supported Python versions](https://img.shields.io/pypi/pyversions/tatsu-api.svg)](https://pypi.python.org/pypi/discord.py)
+[![License: MIT](https://img.shields.io/github/license/Sachaa-Thanasius/tatsu-api.svg)](https://opensource.org/licenses/MIT)
 [![Checked with pyright](https://img.shields.io/badge/pyright-checked-informational.svg)](https://github.com/microsoft/pyright/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 
+
 A lightweight and asynchronous wrapper for [Tatsu v1 API](https://tatsu.gg), written in Python. Supports every documented API endpoint.
 
-Shoutout to the [discord.py](https://github.com/Rapptz/discord.py) wrapper for being an inspiration and providing a strong example for implementation.
+To get an API key, use the command "t!apikey" on a Discord server with the Tatsu bot present.
 
 *Note: Modifying a user's scores/points isn't possible without certain Discord permissions. See the API docs for more info.*
 
 ## Installing
-Uploading to PyPI is being considered. For now, to install the library, run the following command:
+
+**tatsu-api currently requires Python 3.8 or higher.**
+
+To install the library, run one of the following commands:
 
 ```shell
 # Linux/macOS
-python3 -m pip install -U git+https://github.com/Sachaa-Thanasius/Tatsu@main
+python3 -m pip install -U tatsu-api
 
 # Windows
-py -3 -m pip install -U git+https://github.com/Sachaa-Thanasius/Tatsu@main
+py -3 -m pip install -U tatsu-api
 ```
 
 ## Quick Example
+For more examples, see the [examples folder](./examples/).
+
 ```python
 import asyncio
-import tatsu
+import tatsu_api as tatsu
 
 async def main() -> None:
     """Example function."""
@@ -53,4 +60,5 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Take a look at the [examples](./examples/) directory for more.
+## Acknowledgements
+Shoutout to [discord.py](https://github.com/Rapptz/discord.py) for being an inspiration and providing a strong example for implementation.
