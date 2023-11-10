@@ -3,19 +3,17 @@ from __future__ import annotations
 import asyncio
 import itertools
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from .enums import ActionType
-from .hooks import (
+from .http import HTTPClient
+from .models import (
     GUILD_MEMBER_POINTS_DECODER,
     GUILD_MEMBER_RANKING_DECODER,
     GUILD_MEMBER_SCORE_DECODER,
     GUILD_RANKINGS_DECODER,
     STORE_LISTING_DECODER,
     USER_DECODER,
-)
-from .http import HTTPClient
-from .models import (
     GuildMemberPoints,
     GuildMemberRanking,
     GuildMemberScore,
@@ -28,7 +26,7 @@ from .models import (
 if TYPE_CHECKING:
     from typing_extensions import Self
 else:
-    Self = Any
+    Self = object
 
 
 __all__ = ("Client",)
@@ -49,7 +47,12 @@ class Client:
     async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type: type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         await self.close()
 
     async def close(self) -> None:
@@ -211,11 +214,11 @@ class Client:
         coros = [self.http.get_guild_rankings(guild_id, period, offset=offset) for offset in range(start, end, 100)]
         results = await asyncio.gather(*coros)
         rankings_list = [GUILD_RANKINGS_DECODER.decode(result) for result in results]
-        truncated_rankings = [
+        truncated_rankings = tuple(
             ranking
             for ranking in itertools.chain(*[item.rankings for item in rankings_list])
             if ranking.rank in range(start + 1, end + 2)
-        ]
+        )
         return GuildRankings(str(guild_id), truncated_rankings)
 
     async def get_user(self, user_id: int) -> User:

@@ -37,6 +37,12 @@ speed = ["aiodns>=1.1", "Brotli", "cchardet"]
 Homepage = "https://github.com/Sachaa-Thanasius/Tatsu"
 "Bug Tracker" = "https://github.com/Sachaa-Thanasius/Tatsu/issues"
 
+[tool.setuptools]
+packages = ["tatsu"]
+
+[tool.setuptools.package-data]
+"tatsu" = ["py.typed"]
+
 [tool.black]
 line-length = 120
 target-version = ["py38", "py39", "py310", "py311"]
@@ -104,10 +110,7 @@ unfixable = [
     "F403",    # Undefined import with star
     "PLC0414", # Import alias does not rename original package
 ]
-"examples/*.py" = [ # Leave the examples folder alone.
-    "INP001",
-    "T201",
-]
+"examples/*.py" = ["INP001", "T201"] # Leave the examples folder alone.
 
 [tool.ruff.isort]
 lines-after-imports = 2
@@ -120,4 +123,5 @@ venv = ".venv"
 
 pythonVersion = "3.8"
 typeCheckingMode = "strict"
+reportPropertyTypeMismatch = "warning"
 reportUnnecessaryTypeIgnoreComment = "warning"

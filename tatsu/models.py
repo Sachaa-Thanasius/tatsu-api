@@ -19,7 +19,7 @@ __all__ = (
 )
 
 
-class GuildMemberPoints(msgspec.Struct):
+class GuildMemberPoints(msgspec.Struct, frozen=True):
     """A Discord guild member's points information.
 
     Parameters
@@ -40,7 +40,7 @@ class GuildMemberPoints(msgspec.Struct):
     user_id: str
 
 
-class GuildMemberScore(msgspec.Struct):
+class GuildMemberScore(msgspec.Struct, frozen=True):
     """A Discord guild member's score information.
 
     Parameters
@@ -58,7 +58,7 @@ class GuildMemberScore(msgspec.Struct):
     user_id: str
 
 
-class GuildMemberRanking(msgspec.Struct):
+class GuildMemberRanking(msgspec.Struct, frozen=True):
     """A Discord guild member's ranking information over some period of time.
 
     Attributes
@@ -79,7 +79,7 @@ class GuildMemberRanking(msgspec.Struct):
     user_id: str
 
 
-class Ranking(msgspec.Struct):
+class Ranking(msgspec.Struct, frozen=True):
     """A generic rank information object.
 
     Attributes
@@ -97,22 +97,22 @@ class Ranking(msgspec.Struct):
     user_id: str
 
 
-class GuildRankings(msgspec.Struct):
+class GuildRankings(msgspec.Struct, frozen=True):
     """All the rankings in a guild over some period of time.
 
     Attributes
     ----------
     guild_id: :class:`str`
         The Discord ID of the guild.
-    rankings: list[:class:`Ranking`]
+    rankings: tuple[:class:`Ranking`, ...]
         The rankings.
     """
 
     guild_id: str
-    rankings: list[Ranking] = msgspec.field(default_factory=list)
+    rankings: tuple[Ranking, ...] = msgspec.field(default_factory=tuple)
 
 
-class User(msgspec.Struct):
+class User(msgspec.Struct, frozen=True):
     """A Tatsu-bot user.
 
     Attributes
@@ -160,7 +160,7 @@ class User(msgspec.Struct):
     subscription_renewal: datetime.datetime | None = None
 
 
-class StorePrice(msgspec.Struct):
+class StorePrice(msgspec.Struct, frozen=True):
     """A price of a Tatsu store item.
 
     Attributes
@@ -175,7 +175,7 @@ class StorePrice(msgspec.Struct):
     amount: float
 
 
-class StoreListing(msgspec.Struct):
+class StoreListing(msgspec.Struct, frozen=True):
     """The listing of a Tatsu store item.
 
     Attributes
@@ -192,11 +192,11 @@ class StoreListing(msgspec.Struct):
         Whether this is a new item in the store.
     preview: :class:`str`, optional
         The URL to an image preview of the item. Optional.
-    prices: list[:class:`StorePrice`], optional
+    prices: tuple[:class:`StorePrice`, ...], optional
         The prices for the item. Optional.
-    categories: list[: :class:`str`], optional
+    categories: tuple[: :class:`str`, ...], optional
         The categories for the item. Optional
-    tags: list[: :class:`str`], optional
+    tags: tuple[: :class:`str`, ...], optional
         The tags for the item. Optional.
     """
 
@@ -206,6 +206,18 @@ class StoreListing(msgspec.Struct):
     description: str
     new: bool
     preview: str | None = None
-    prices: list[StorePrice] = msgspec.field(default_factory=list)
-    categories: list[str] = msgspec.field(default_factory=list)
-    tags: list[str] = msgspec.field(default_factory=list)
+    prices: tuple[StorePrice, ...] = msgspec.field(default_factory=tuple)
+    categories: tuple[str, ...] = msgspec.field(default_factory=tuple)
+    tags: tuple[str, ...] = msgspec.field(default_factory=tuple)
+
+
+# fmt: off
+GEN_ENCODER                     = msgspec.json.Encoder()
+GEN_DECODER                     = msgspec.json.Decoder()
+GUILD_MEMBER_POINTS_DECODER     = msgspec.json.Decoder(GuildMemberPoints)
+GUILD_MEMBER_SCORE_DECODER      = msgspec.json.Decoder(GuildMemberScore)
+GUILD_MEMBER_RANKING_DECODER    = msgspec.json.Decoder(GuildMemberRanking)
+GUILD_RANKINGS_DECODER          = msgspec.json.Decoder(GuildRankings)
+USER_DECODER                    = msgspec.json.Decoder(User)
+STORE_LISTING_DECODER           = msgspec.json.Decoder(StoreListing)
+# fmt: on

@@ -5,11 +5,10 @@ from typing import ClassVar
 
 
 class CustomColourFormatter(logging.Formatter):
-    """Custom logging formatter for testing purposes. Copied from discord.py.
+    """Custom logging formatter for testing purposes.
 
-    References
-    ----------
-    https://github.com/Rapptz/discord.py/blob/master/discord/utils.py#L1262
+    Copied from discord.py. Credit to Rapptz and the other maintainers.
+    Source: https://github.com/Rapptz/discord.py/blob/master/discord/utils.py#L1262
     """
 
     LEVEL_COLOURS: ClassVar[list[tuple[int, str]]] = [
