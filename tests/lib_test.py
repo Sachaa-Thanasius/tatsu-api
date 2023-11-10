@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeVar
 
 from test_logging import setup_logging
 
-import tatsu
+import tatsu_api as tatsu
 
 
 T = TypeVar("T")

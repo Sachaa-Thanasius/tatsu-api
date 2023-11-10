@@ -3,12 +3,12 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tatsu"
+name = "tatsu_api"
 description = "An unofficial, async-ready wrapper for the Tatsu API."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.8"
-version = "0.1.0"
+version = "1.0.0"
 keywords = ["python", "python-3", "tatsu", "tatsu-api"]
 authors = [{ name = "Sachaa-Thanasius", email = "111999343+Sachaa-Thanasius@users.noreply.github.com" }]
 classifiers = [
@@ -38,10 +38,10 @@ Homepage = "https://github.com/Sachaa-Thanasius/Tatsu"
 "Bug Tracker" = "https://github.com/Sachaa-Thanasius/Tatsu/issues"
 
 [tool.setuptools]
-packages = ["tatsu"]
+packages = ["tatsu_api"]
 
 [tool.setuptools.package-data]
-"tatsu" = ["py.typed"]
+tatsu_api = ["py.typed"]
 
 [tool.black]
 line-length = 120
@@ -117,7 +117,7 @@ lines-after-imports = 2
 combine-as-imports = true
 
 [tool.pyright]
-include = ["tatsu"]
+include = ["tatsu_api"]
 venvPath = "."
 venv = ".venv"
 

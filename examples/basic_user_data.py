@@ -1,6 +1,6 @@
 import asyncio
 
-import tatsu
+import tatsu_api as tatsu
 
 
 async def main() -> None:
