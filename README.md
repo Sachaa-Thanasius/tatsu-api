@@ -1,5 +1,6 @@
 # Tatsu API Wrapper
-[![PyPI supported Python versions](https://img.shields.io/pypi/pyversions/tatsu-api.svg)](https://pypi.python.org/pypi/discord.py)
+
+[![PyPI supported Python versions](https://img.shields.io/pypi/pyversions/tatsu-api.svg)](https://pypi.python.org/pypi/tatsu-api)
 [![License: MIT](https://img.shields.io/github/license/Sachaa-Thanasius/tatsu-api.svg)](https://opensource.org/licenses/MIT)
 [![Checked with pyright](https://img.shields.io/badge/pyright-checked-informational.svg)](https://github.com/microsoft/pyright/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -26,8 +27,8 @@ python3 -m pip install -U tatsu-api
 py -3 -m pip install -U tatsu-api
 ```
 
-## Quick Example
-For more examples, see the [examples folder](./examples/).
+## Example
+For more examples, see the [examples folder](https://github.com/Sachaa-Thanasius/tatsu-api/examples).
 
 ```python
 import asyncio
