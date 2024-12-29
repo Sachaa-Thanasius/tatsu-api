@@ -23,13 +23,11 @@ async def main() -> None:
         username = profile.username
 
         ranking = await client.get_member_ranking(test_guild, test_user, "all")
-        print(f"On the Tatsu server, {username} ranks at {ranking.rank} for all time.")
+        print(f"On this server, {username} ranks at {ranking.rank} for all time.")
 
         before_points = await client.get_member_points(test_guild, test_user)
-        print(f"{username} - Points before update: {before_points.points}")
-
-        after_points = await client.update_member_points(test_guild, test_user, -10)
-        print(f"{username} - Points after update: {after_points.points}")
+        print(f"{username} - Current points: {before_points.points}")
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

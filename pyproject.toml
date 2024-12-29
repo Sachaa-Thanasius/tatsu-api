@@ -7,18 +7,16 @@ name = "tatsu_api"
 description = "An unofficial, async-ready wrapper for the Tatsu API."
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.8"
-version = "1.0.0.post1"
+requires-python = ">=3.9"
+version = "2.0.0.dev0"
 keywords = ["python", "python-3", "tatsu", "tatsu-api"]
-authors = [{ name = "Sachaa-Thanasius", email = "111999343+Sachaa-Thanasius@users.noreply.github.com" }]
+authors = [{ name = "Sachaa-Thanasius", email = "sachaathanasius@gmail.com" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Framework :: aiohttp",
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -28,14 +26,17 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-dependencies = ["aiohttp>=3.8", "msgspec"]
+dependencies = ["aiohttp>=3.8"]
 
 [project.optional-dependencies]
-speed = ["aiodns>=1.1", "Brotli", "cchardet"]
+speed = ["aiohttp[speedups]>=3.8"]
+test = ["pytest", "pytest-asyncio"]
+dev = ["pre-commit", "typing-extensions"]
 
 [project.urls]
 Homepage = "https://github.com/Sachaa-Thanasius/tatsu-api"
-"Bug Tracker" = "https://github.com/Sachaa-Thanasius/tatsu-api/issues"
+Issues = "https://github.com/Sachaa-Thanasius/tatsu-api/issues"
+Source = "https://github.com/Sachaa-Thanasius/tatsu-api"
 
 [tool.setuptools]
 packages = ["tatsu_api"]
@@ -43,85 +44,117 @@ packages = ["tatsu_api"]
 [tool.setuptools.package-data]
 tatsu_api = ["py.typed"]
 
-[tool.black]
-line-length = 120
-target-version = ["py38", "py39", "py310", "py311"]
+
+# -------- Test config
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+addopts = ["--import-mode=importlib", "--strict-markers", "--strict-config"]
+asyncio_default_fixture_loop_scope = "module"
+
+
+# -------- Linter config
 
 [tool.ruff]
+# NOTE: tool.ruff.target-version, when left blank, defaults to the contents of project.requires-python. Let it be.
 line-length = 120
-target-version = "py38"
 select = [
     "F",
     "E",
     "I",
-    "C90",
     "UP",
     "YTT",
     "ANN",
+    "ASYNC",
     "S",
     "BLE",
+    # "FBT",
     "B",
     "A",
     "COM",
     "C4",
     "DTZ",
+    "T10",
     "EM",
     "ISC",
     "G",
     "INP",
     "PIE",
     "T20",
-    "Q003",
+    "PYI",
+    "PT",
     "RSE",
     "RET",
     "SIM",
     "TID",
     "PTH",
     "ERA",
-    "PLC",
-    "PLE",
-    "PLR",
-    "PLW",
+    "PL",
     "TRY",
+    "PERF",
+    "FURB",
     "RUF",
 ]
 ignore = [
-    "G002",    # Erroneous issue with %-logging when logging can be configured for % logging.
-    "S101",    # Use of assert here is a known quantity. Blame typing memes.
-    "PLR2004", # Magic value comparison. May remove later.
-    "SIM105",  # Suppressable exception. I'm not paying the overhead of contextlib.suppress for stylistic choices.
-    "C90",     # McCabe complexity memes.
-    "PLR0913", # Some functions require more than 5 arguments.
-    "PLR0915", # Some functions require more than 50 lines.
-    "ANN101",  # Python310 doesn't have Self in typing, so I'm not using it everywhere for self.
-    "ANN102",  # Same deal as ANN101, but for cls.
-    "ANN401",  # Need Any for args and kwargs in some places.
-    "A003",    # Shadowing some builtin names in some places.
-    "PD",      # Pandas isn't relevant for this project.
-    "NPY",     # Numpy isn't relevant for this project.
+    # ---- General
+    "S101",    # Use of assert here is a known quantity for typing cases. All uses should be safe to optimize out.
+    "SIM105",  # Suppressable exception. contextlib.suppress is a stylistic choice with overhead.
+    "C90",     # McCabe complexity.
+    "ANN204",  # Special method return types are usually implicit and/or known by type checker.
+    "ANN401",  # Any is needed for some annotations.
+    "UP038",   # isinstance performs better with tuples than unions.
+    "PT001",   # pytest recommends against empty parentheses on pytest.fixture.
+    "PD011",   # Erroneous issue that triggers for any .values attribute access at all.
+    "PLR2004", # "Magic number" depends on the use case.
+    "RUF002",  # "Ambiguous character" depends on the use case.
+    "RUF003",  # "Ambiguous character" depends on the use case.
+    "RUF022",  # __all__ ordering can be meaningful.
+    "RUF023",  # __slots__ ordering can be meaningful.
+
+    # ---- Recommended by Ruff when using Ruff format
+    "E111",
+    "E114",
+    "E117",
+    "E501",
+    "COM812",
+    "COM819",
+    "ISC001",
+    "ISC002",
+
+    # ---- Project-specific
+    # Readability
+    "RET505", # else after return
 ]
 unfixable = [
-    "ERA",     # I don't want anything erroneously detected deleted by this.
-    "PLC0414", # This causes issues when declaring module imports in __init__ files. Disallow deletion.
+    "ERA", # Prevent unlikely erroneous deletion.
 ]
 
 [tool.ruff.per-file-ignores]
-"__init__.py" = [
-    "F403",    # Undefined import with star
-    "PLC0414", # Import alias does not rename original package
-]
 "examples/*.py" = ["INP001", "T201"] # Leave the examples folder alone.
+"test_tatsu.py" = [
+    "ANN201", # Return annotations.
+]
 
 [tool.ruff.isort]
 lines-after-imports = 2
 combine-as-imports = true
 
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = true
+
+
+# -------- Type-checker config
+
 [tool.pyright]
 include = ["tatsu_api"]
-venvPath = "."
-venv = ".venv"
-
-pythonVersion = "3.8"
+pythonVersion = "3.9"
+pythonPlatform = "All"
 typeCheckingMode = "strict"
-reportPropertyTypeMismatch = "warning"
+
+reportPrivateUsage = "none"
+reportUnnecessaryIsInstance = "information"
+reportCallInDefaultInitializer = "warning"
+reportImportCycles = "information"
+reportPropertyTypeMismatch = "error"
+reportShadowedImports = "error"
 reportUnnecessaryTypeIgnoreComment = "warning"

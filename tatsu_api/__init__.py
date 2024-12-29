@@ -8,40 +8,53 @@ A basic unofficial wrapper for the Tatsu API.
 from __future__ import annotations
 
 import asyncio
-import itertools
+import enum
 import logging
 import sys
-from collections.abc import Coroutine
 from datetime import datetime, timezone
-from enum import Enum
 from importlib.metadata import version as im_version
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Optional, TypedDict, Union
 from urllib.parse import quote as uriquote
 
 import aiohttp
-import msgspec
+
+from ._lockout import FIFOLockout
 
 
-if TYPE_CHECKING:
-    from types import TracebackType
-
-    from typing_extensions import Self
+if sys.version_info >= (3, 11):
+    from typing import NotRequired, Self
+elif TYPE_CHECKING:
+    from typing_extensions import NotRequired, Self
 else:
+    _GenericAlias = type(list[int])
 
-    class TracebackType:
-        pass
+    class _PlaceholderGenericAlias(_GenericAlias):
+        def __repr__(self) -> str:
+            return f"<import placeholder for {super().__repr__()}>"
 
-    class Self:
-        pass
+    class _PlaceholderMeta(type):
+        _source_module: str
 
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            super().__init__(*args, **kwargs)
+            self.__doc__ = f"Placeholder for {self._source_module}.{self.__name__}."
 
-# ==== Enums
+        def __repr__(self) -> str:
+            return f"<import placeholder for {self._source_module}.{self.__name__}>"
+
+    class _PlaceholderGenericMeta(_PlaceholderMeta):
+        def __getitem__(self, item: object) -> _PlaceholderGenericAlias:
+            return _PlaceholderGenericAlias(self, item)
+
+    class NotRequired(metaclass=_PlaceholderGenericMeta):
+        _source_module = "typing"
+
+    class Self(metaclass=_PlaceholderMeta):
+        _source_module = "typing"
 
 
 __all__ = (
-    "ActionType",
-    "SubscriptionType",
-    "CurrencyType",
+    # -- Exceptions
     "TatsuException",
     "HTTPException",
     "BadRequest",
@@ -49,6 +62,11 @@ __all__ = (
     "NotFound",
     "RateLimited",
     "TatsuServerError",
+    # -- Enums
+    "ActionType",
+    "SubscriptionType",
+    "CurrencyType",
+    # -- Models
     "GuildMemberPoints",
     "GuildMemberScore",
     "GuildMemberRanking",
@@ -57,38 +75,17 @@ __all__ = (
     "User",
     "StorePrice",
     "StoreListing",
+    # -- Client
     "Client",
 )
 
 
-class ActionType(Enum):
-    """The way to modify a Tatsu user's score."""
+_log = logging.getLogger(__name__)
 
-    ADD = 0
-    REMOVE = 1
+_lockout_manager = FIFOLockout()
 
 
-class SubscriptionType(Enum):
-    """The type of Tatsu subscription a user has."""
-
-    NONE = 0
-    SUPPORTER1 = 1
-    SUPPORTER2 = 2
-    SUPPORTER3 = 3
-
-
-class CurrencyType(Enum):
-    """A type of Tatsu currency."""
-
-    CREDITS = 0
-    TOKENS = 1
-    EMERALDS = 2
-    CANDY_CANE = 3
-    USD = 4
-    CANDY_CORN = 5
-
-
-# ==== Exceptions
+# region -------- Exceptions --------
 
 
 class TatsuException(Exception):
@@ -102,7 +99,7 @@ class HTTPException(TatsuException):
     ----------
     response: :class:`aiohttp.ClientResponse`
         The HTTP response from the request.
-    message: :class:`str` | dict[:class:`str`, Any], optional
+    message: Optional[Union[:class:`str`, dict[:class:`str`, Any]]]
         The decoded response data.
 
     Attributes
@@ -117,11 +114,16 @@ class HTTPException(TatsuException):
         The Tatsu-specific error text.
     """
 
-    def __init__(self, response: aiohttp.ClientResponse, message: str | dict[str, Any] | None) -> None:
+    response: aiohttp.ClientResponse
+    status: int
+    code: int
+    text: str
+
+    def __init__(self, response: aiohttp.ClientResponse, message: Optional[Union[str, dict[str, Any]]]) -> None:
         self.response = response
-        self.status: int = response.status
-        self.code: int = message.get("code", 0) if isinstance(message, dict) else 0
-        self.text: str = message.get("message", "") if isinstance(message, dict) else (message or "")
+        self.status = response.status
+        self.code = message.get("code", 0) if isinstance(message, dict) else 0
+        self.text = message.get("message", "") if isinstance(message, dict) else (message or "")
 
         fmt = "{0.status} {0.reason} (error code: {1})"
         if len(self.text):
@@ -165,25 +167,119 @@ class TatsuServerError(HTTPException):
     """
 
 
-# ==== Models
+# endregion --------
 
 
-__all__ = (
-    "GuildMemberPoints",
-    "GuildMemberScore",
-    "GuildMemberRanking",
-    "Ranking",
-    "GuildRankings",
-    "User",
-    "StorePrice",
-    "StoreListing",
-)
+# region -------- Enums --------
 
 
-class GuildMemberPoints(msgspec.Struct, frozen=True):
+class ActionType(enum.IntEnum):
+    """The way to modify a Tatsu user's score."""
+
+    ADD = 0
+    REMOVE = 1
+
+
+class SubscriptionType(enum.Enum):
+    """The type of Tatsu subscription a user has."""
+
+    NONE = 0
+    SUPPORTER1 = 1
+    SUPPORTER2 = 2
+    SUPPORTER3 = 3
+
+
+class CurrencyType(enum.Enum):
+    """A type of Tatsu currency."""
+
+    CREDITS = 0
+    TOKENS = 1
+    EMERALDS = 2
+    CANDY_CANE = 3
+    USD = 4
+    CANDY_CORN = 5
+
+
+# endregion --------
+
+
+# region -------- Payloads --------
+
+
+class _GuildMemberPointsPayload(TypedDict):
+    guild_id: str
+    points: int
+    rank: int
+    user_id: str
+
+
+class _GuildMemberScorePayload(TypedDict):
+    guild_id: str
+    score: int
+    user_id: str
+
+
+class _GuildMemberRankingPayload(TypedDict):
+    guild_id: str
+    rank: int
+    score: int
+    user_id: str
+
+
+class _RankingPayload(TypedDict):
+    rank: int
+    score: int
+    user_id: str
+
+
+class _GuildRankingsPayload(TypedDict):
+    guild_id: str
+    rankings: list[_RankingPayload]
+
+
+class _UserPayload(TypedDict):
+    avatar_hash: str
+    avatar_url: str
+    credits: int
+    discriminator: str
+    id: str
+    info_box: str
+    reputation: int
+    subscription_type: int
+    subscription_renewal: NotRequired[str]  # ISO8601 timestamp
+    title: str
+    tokens: int
+    username: str
+    xp: int
+
+
+class _StorePricePayload(TypedDict):
+    currency: int
+    amount: float
+
+
+class _StoreListingPayload(TypedDict):
+    id: str
+    name: str
+    summary: str
+    description: str
+    new: bool
+    preview: NotRequired[str]
+    prices: NotRequired[list[_StorePricePayload]]
+    categories: NotRequired[list[str]]
+    tags: NotRequired[list[str]]
+
+
+# endregion --------
+
+
+# region -------- Models --------
+
+
+class GuildMemberPoints:
     """A Discord guild member's points information.
 
-    Parameters
+    Attributes
     ----------
     guild_id: :class:`str`
         The Discord ID of the guild.
@@ -195,16 +291,34 @@ class GuildMemberPoints(msgspec.Struct, frozen=True):
         The user's Discord ID.
     """
 
+    __slots__ = ("guild_id", "points", "rank", "user_id")
+
     guild_id: str
     points: int
     rank: int
     user_id: str
 
+    def __init__(self, guild_id: str, points: int, rank: int, user_id: str) -> None:
+        self.guild_id = guild_id
+        self.points = points
+        self.rank = rank
+        self.user_id = user_id
 
-class GuildMemberScore(msgspec.Struct, frozen=True):
+    @classmethod
+    def _from_json(cls, payload: _GuildMemberPointsPayload) -> Self:
+        return cls(payload["guild_id"], payload["points"], payload["rank"], payload["user_id"])
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"(guild_id={self.guild_id}, points={self.points}, rank={self.rank}, user_id={self.user_id})"
+        )
+
+
+class GuildMemberScore:
     """A Discord guild member's score information.
 
-    Parameters
+    Attributes
     ----------
     guild_id: :class:`str`
         The Discord ID of the guild.
@@ -214,12 +328,26 @@ class GuildMemberScore(msgspec.Struct, frozen=True):
         The user's Discord ID.
     """
 
+    __slots__ = ("guild_id", "score", "user_id")
+
     guild_id: str
     score: int
     user_id: str
 
+    def __init__(self, guild_id: str, score: int, user_id: str) -> None:
+        self.guild_id = guild_id
+        self.score = score
+        self.user_id = user_id
 
-class GuildMemberRanking(msgspec.Struct, frozen=True):
+    @classmethod
+    def _from_json(cls, payload: _GuildMemberScorePayload) -> Self:
+        return cls(payload["guild_id"], payload["score"], payload["user_id"])
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(guild_id={self.guild_id}, score={self.score}, user_id={self.user_id})"
+
+
+class GuildMemberRanking:
     """A Discord guild member's ranking information over some period of time.
 
     Attributes
@@ -234,13 +362,31 @@ class GuildMemberRanking(msgspec.Struct, frozen=True):
         The user's Discord ID.
     """
 
+    __slots__ = ("guild_id", "rank", "score", "user_id")
+
     guild_id: str
     rank: int
     score: int
     user_id: str
 
+    def __init__(self, guild_id: str, rank: int, score: int, user_id: str) -> None:
+        self.guild_id = guild_id
+        self.rank = rank
+        self.score = score
+        self.user_id = user_id
 
-class Ranking(msgspec.Struct, frozen=True):
+    @classmethod
+    def _from_json(cls, payload: _GuildMemberRankingPayload) -> Self:
+        return cls(payload["guild_id"], payload["rank"], payload["score"], payload["user_id"])
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"(guild_id={self.guild_id}, rank={self.rank}, score={self.score}, user_id={self.user_id})"
+        )
+
+
+class Ranking:
     """A generic rank information object.
 
     Attributes
@@ -253,12 +399,26 @@ class Ranking(msgspec.Struct, frozen=True):
         The user's Discord ID.
     """
 
+    __slots__ = ("rank", "score", "user_id")
+
     rank: int
     score: int
     user_id: str
 
+    def __init__(self, rank: int, score: int, user_id: str) -> None:
+        self.rank = rank
+        self.score = score
+        self.user_id = user_id
 
-class GuildRankings(msgspec.Struct, frozen=True):
+    @classmethod
+    def _from_json(cls, payload: _RankingPayload) -> Self:
+        return cls(payload["rank"], payload["score"], payload["user_id"])
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(rank={self.rank}, score={self.score}, user_id={self.user_id})"
+
+
+class GuildRankings:
     """All the rankings in a guild over some period of time.
 
     Attributes
@@ -269,11 +429,24 @@ class GuildRankings(msgspec.Struct, frozen=True):
         The rankings.
     """
 
+    __slots__ = ("guild_id", "rankings")
+
     guild_id: str
-    rankings: tuple[Ranking, ...] = msgspec.field(default_factory=tuple)
+    rankings: tuple[Ranking, ...]
+
+    def __init__(self, guild_id: str, rankings: tuple[Ranking, ...]) -> None:
+        self.guild_id = guild_id
+        self.rankings = rankings
+
+    @classmethod
+    def _from_json(cls, payload: _GuildRankingsPayload) -> Self:
+        return cls(payload["guild_id"], tuple(map(Ranking._from_json, payload["rankings"])))
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(guild_id={self.guild_id}, rankings={self.rankings!r})"
 
 
-class User(msgspec.Struct, frozen=True):
+class User:
     """A Tatsu-bot user.
 
     Attributes
@@ -294,8 +467,8 @@ class User(msgspec.Struct, frozen=True):
         The number of reputation points the user has.
     subscription_type: :class:`int`
         The user's subscription type.
-    subscription_renewal: :class:`str`, optional
-        The subscription renewal time if the user has a subscription. Optional
+    subscription_renewal: :class:`datetime`, optional
+        The subscription renewal time if the user has a subscription. Optional.
     title: class:`str`
         The text in the user's title.
     tokens: :class:`int`
@@ -305,6 +478,22 @@ class User(msgspec.Struct, frozen=True):
     xp: :class:`int`
         The number of experience points the user has.
     """
+
+    __slots__ = (
+        "avatar_hash",
+        "avatar_url",
+        "credits",
+        "discriminator",
+        "id",
+        "info_box",
+        "reputation",
+        "subscription_type",
+        "title",
+        "tokens",
+        "username",
+        "xp",
+        "subscription_renewal",
+    )
 
     avatar_hash: str
     avatar_url: str
@@ -318,10 +507,67 @@ class User(msgspec.Struct, frozen=True):
     tokens: int
     username: str
     xp: int
-    subscription_renewal: datetime | None = None
+    subscription_renewal: Optional[datetime]
+
+    def __init__(  # noqa: PLR0913
+        self,
+        avatar_hash: str,
+        avatar_url: str,
+        credits: int,  # noqa: A002
+        discriminator: str,
+        id: str,  # noqa: A002
+        info_box: str,
+        reputation: int,
+        subscription_type: SubscriptionType,
+        title: str,
+        tokens: int,
+        username: str,
+        xp: int,
+        subscription_renewal: Optional[datetime] = None,
+    ) -> None:
+        self.avatar_hash = avatar_hash
+        self.avatar_url = avatar_url
+        self.credits = credits
+        self.discriminator = discriminator
+        self.id = id
+        self.info_box = info_box
+        self.reputation = reputation
+        self.subscription_type = subscription_type
+        self.title = title
+        self.tokens = tokens
+        self.username = username
+        self.xp = xp
+        self.subscription_renewal = subscription_renewal
+
+    @classmethod
+    def _from_json(cls, payload: _UserPayload) -> Self:
+        if (_raw_sub_renewal := payload.get("subscription_renewal")) is not None:
+            # TODO: Double-check that this is fine.
+            sub_renewal = datetime.strptime(_raw_sub_renewal, "%Y-%m-%dT%H:%M:%SZ")  # noqa: DTZ007
+        else:
+            sub_renewal = None
+
+        return cls(
+            payload["avatar_hash"],
+            payload["avatar_url"],
+            payload["credits"],
+            payload["discriminator"],
+            payload["id"],
+            payload["info_box"],
+            payload["reputation"],
+            SubscriptionType(payload["subscription_type"]),
+            payload["title"],
+            payload["tokens"],
+            payload["username"],
+            payload["xp"],
+            sub_renewal,
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({', '.join(f'{name}={getattr(self, name)}' for name in self.__slots__)})"
 
 
-class StorePrice(msgspec.Struct, frozen=True):
+class StorePrice:
     """A price of a Tatsu store item.
 
     Attributes
@@ -332,11 +578,24 @@ class StorePrice(msgspec.Struct, frozen=True):
         The cost of the item in the currency.
     """
 
+    __slots__ = ("currency", "amount")
+
     currency: CurrencyType
     amount: float
 
+    def __init__(self, currency: CurrencyType, amount: float) -> None:
+        self.currency = currency
+        self.amount = amount
 
-class StoreListing(msgspec.Struct, frozen=True):
+    @classmethod
+    def _from_json(cls, payload: _StorePricePayload) -> Self:
+        return cls(CurrencyType(payload["currency"]), payload["amount"])
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(currency={self.currency}, amount={self.amount})"
+
+
+class StoreListing:
     """The listing of a Tatsu store item.
 
     Attributes
@@ -349,48 +608,91 @@ class StoreListing(msgspec.Struct, frozen=True):
         The summary of the item.
     description: :class:`str
         The description of the item.
-    new: :class:`str
+    new: :class:`str`
         Whether this is a new item in the store.
     preview: :class:`str`, optional
         The URL to an image preview of the item. Optional.
     prices: tuple[:class:`StorePrice`, ...], optional
         The prices for the item. Optional.
-    categories: tuple[: :class:`str`, ...], optional
-        The categories for the item. Optional
-    tags: tuple[: :class:`str`, ...], optional
+    categories: tuple[:class:`str`, ...], optional
+        The categories for the item. Optional.
+    tags: tuple[:class:`str`, ...], optional
         The tags for the item. Optional.
     """
+
+    __slots__ = (
+        "id",
+        "name",
+        "summary",
+        "description",
+        "new",
+        "preview",
+        "prices",
+        "categories",
+        "tags",
+    )
 
     id: str
     name: str
     summary: str
     description: str
     new: bool
-    preview: str | None = None
-    prices: tuple[StorePrice, ...] = msgspec.field(default_factory=tuple)
-    categories: tuple[str, ...] = msgspec.field(default_factory=tuple)
-    tags: tuple[str, ...] = msgspec.field(default_factory=tuple)
+    preview: Optional[str]
+    prices: tuple[StorePrice, ...]
+    categories: tuple[str, ...]
+    tags: tuple[str, ...]
+
+    def __init__(  # noqa: PLR0913
+        self,
+        id: str,  # noqa: A002
+        name: str,
+        summary: str,
+        description: str,
+        new: bool,
+        preview: Optional[str] = None,
+        prices: tuple[StorePrice, ...] = (),
+        categories: tuple[str, ...] = (),
+        tags: tuple[str, ...] = (),
+    ) -> None:
+        self.id = id
+        self.name = name
+        self.summary = summary
+        self.description = description
+        self.new = new
+        self.preview = preview
+        self.prices = prices
+        self.categories = categories
+        self.tags = tags
+
+    @classmethod
+    def _from_json(cls, payload: _StoreListingPayload) -> Self:
+        prices = tuple(map(StorePrice._from_json, payload.get("prices", ())))
+        categories = tuple(payload.get("categories", ()))
+        tags = tuple(payload.get("tags", ()))
+
+        return cls(
+            payload["id"],
+            payload["name"],
+            payload["summary"],
+            payload["description"],
+            payload["new"],
+            payload.get("preview"),
+            prices,
+            categories,
+            tags,
+        )
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({', '.join(f'{name}={getattr(self, name)}' for name in self.__slots__)})"
 
 
-# fmt: off
-GEN_ENCODER                     = msgspec.json.Encoder()
-GEN_DECODER                     = msgspec.json.Decoder()
-GUILD_MEMBER_POINTS_DECODER     = msgspec.json.Decoder(GuildMemberPoints)
-GUILD_MEMBER_SCORE_DECODER      = msgspec.json.Decoder(GuildMemberScore)
-GUILD_MEMBER_RANKING_DECODER    = msgspec.json.Decoder(GuildMemberRanking)
-GUILD_RANKINGS_DECODER          = msgspec.json.Decoder(GuildRankings)
-USER_DECODER                    = msgspec.json.Decoder(User)
-STORE_LISTING_DECODER           = msgspec.json.Decoder(StoreListing)
-# fmt: on
+# endregion --------
 
 
-# ==== Raw HTTP Client
+# region -------- API client --------
 
 
-_LOGGER = logging.getLogger(__name__)
-
-
-class Route:
+class _Route:
     """A helper class for instantiating an HTTP method to Tatsu.
 
     Parameters
@@ -416,17 +718,30 @@ class Route:
         self.url = url
 
 
-class HTTPClient:
-    """A small HTTP client that sends requests to the Tatsu API."""
+class Client:
+    """A client for interacting with the Tatsu API.
 
-    def __init__(self, token: str, *, session: aiohttp.ClientSession | None = None) -> None:
+    Parameters
+    ----------
+    token: :class:`str`
+        The Tatsu API key that will be used to authorize all requests to it.
+    session: :class:`aiohttp.ClientSession`, optional
+        A web client session to use for connecting to the API. If provided, the library is not responsible for closing
+        it. If not provided, the client will create one.
+    """
+
+    def __init__(self, token: str, *, session: Optional[aiohttp.ClientSession] = None) -> None:
         self.token = token
-        self._session = session
         user_agent = "Tatsu (https://github.com/Sachaa-Thanasius/Tatsu {0} Python/{1[0]}.{1[1]} aiohttp/{2}"
-        self.user_agent = user_agent.format(im_version("tatsu"), sys.version_info, im_version("aiohttp"))
-        self._ratelimit_unlock = asyncio.Event()
-        self._ratelimit_unlock.set()
-        self._ratelimit_reset_dt = None
+        self.user_agent = user_agent.format(im_version("tatsu_api"), sys.version_info, im_version("aiohttp"))
+        self._own_session = session is not None
+        self._session = session
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *_exc_info: object) -> None:
+        await self.close()
 
     async def _start_session(self) -> None:
         """|coro|
@@ -436,6 +751,7 @@ class HTTPClient:
 
         if (not self._session) or self._session.closed:
             self._session = aiohttp.ClientSession()
+            self._own_session = True
 
     async def close(self) -> None:
         """|coro|
@@ -443,10 +759,10 @@ class HTTPClient:
         Close the internal HTTP session.
         """
 
-        if self._session and not self._session.closed:
+        if self._session and not self._session.closed and self._own_session:
             await self._session.close()
 
-    async def request(self, route: Route, **kwargs: Any) -> bytes:
+    async def _request(self, route: _Route, **kwargs: Any) -> Any:
         """|coro|
 
         Send an HTTP request to some endpoint in the Tatsu API.
@@ -467,54 +783,48 @@ class HTTPClient:
         await self._start_session()
         assert self._session
 
-        if not self._ratelimit_unlock.is_set():
-            await self._ratelimit_unlock.wait()
-
-        response: aiohttp.ClientResponse | None = None
+        response: Optional[aiohttp.ClientResponse] = None
         message: str | dict[str, Any] | None = None
-        for _tries in range(5):
-            async with self._session.request(route.method, route.url, **kwargs) as response:
-                _LOGGER.debug("%s %s has returned %d.", route.method, response.url.human_repr(), response.status)
+        for _try_num in range(1, 6):
+            async with _lockout_manager, self._session.request(route.method, route.url, **kwargs) as response:  # noqa: F811
+                # TODO: Actually benchmark to see if human_repr() is expensive.
+                if _log.isEnabledFor(logging.DEBUG):
+                    _log.debug("%s %s has returned %d.", route.method, response.url.human_repr(), response.status)
 
-                data = await response.read()
-                _LOGGER.debug(data)
+                resp_data = await response.json()
+                _log.debug(resp_data)
 
-                limit = response.headers.get("X-RateLimit-Limit")
-                remaining = response.headers.get("X-RateLimit-Remaining")
-                reset = response.headers.get("X-RateLimit-Reset", 0.0)
-                reset_dt = datetime.fromtimestamp(float(reset), tz=timezone.utc).astimezone()
+                rl_limit = response.headers.get("X-RateLimit-Limit")
+                rl_remaining = response.headers.get("X-RateLimit-Remaining")
+                rl_reset = response.headers.get("X-RateLimit-Reset", 0.0)
+                rl_reset_dt = datetime.fromtimestamp(float(rl_reset), tz=timezone.utc).astimezone()
 
-                msg = "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)"
-                _LOGGER.debug(msg, limit, remaining, reset_dt, _tries)
+                _log.debug(
+                    "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)",
+                    rl_limit,
+                    rl_remaining,
+                    rl_reset_dt,
+                    _try_num,
+                )
 
-                if not self._ratelimit_reset_dt or self._ratelimit_reset_dt < reset_dt:
-                    self._ratelimit_reset_dt = reset_dt
-
-                if response.status != 429 and remaining == "0":
+                # Stop hitting the API if "remaining" is 0, even without a 429.
+                if response.status != 429 and rl_remaining == "0":
                     now = datetime.now(tz=timezone.utc).astimezone()
-                    self._ratelimit_unlock.clear()
-                    wait_delta = self._ratelimit_reset_dt - now
-                    _LOGGER.info("Emptied the ratelimit. Waiting for %s seconds for reset.", wait_delta.total_seconds())
-                    await asyncio.sleep(wait_delta.total_seconds())
-                    self._ratelimit_unlock.set()
+                    rl_reset_after = (rl_reset_dt - now).total_seconds()
+                    _log.info("Emptied the rate limit early. Waiting for %s seconds for reset.", rl_reset_after)
+                    _lockout_manager.lockout_for(rl_reset_after)
 
+                # The request succeeded.
                 if 300 > response.status >= 200:
-                    return data
+                    return resp_data
 
-                message = GEN_DECODER.decode(data)
-
+                # Stop hitting the API on a 429.
                 if response.status == 429:
                     now = datetime.now(tz=timezone.utc).astimezone()
-                    self._ratelimit_unlock.clear()
-                    _LOGGER.debug(
-                        "Comparison of timestamps (now vs. ratelimit reset time): %s vs %s",
-                        now,
-                        self._ratelimit_reset_dt,
-                    )
-                    wait_delta = self._ratelimit_reset_dt - now
-                    _LOGGER.info("Hit a rate limit. Waiting for %s seconds for reset.", wait_delta.total_seconds())
-                    await asyncio.sleep(wait_delta.total_seconds())
-                    self._ratelimit_unlock.set()
+                    _log.debug("Comparison of timestamps (now vs. ratelimit reset time): %s vs %s", now, rl_reset_dt)
+                    rl_reset_after = (rl_reset_dt - now).total_seconds()
+                    _log.info("Hit a rate limit. Waiting for %s seconds for reset.", rl_reset_after)
+                    _lockout_manager.lockout_for(rl_reset_after)
                     continue
 
                 if response.status == 400:
@@ -529,109 +839,11 @@ class HTTPClient:
                 raise HTTPException(response, message)
 
         if response is not None:
-            _LOGGER.debug("Reached maximum number of retries.")
+            _log.debug("Reached maximum number of retries.")
             raise HTTPException(response, message)
 
         msg = "Unreachable code in HTTP handling."
         raise RuntimeError(msg)
-
-    def get_guild_member_points(self, guild_id: int, member_id: int) -> Coroutine[Any, Any, bytes]:
-        route = Route("GET", "/guilds/{guild_id}/members/{member_id}/points", guild_id=guild_id, member_id=member_id)
-        return self.request(route)
-
-    def modify_guild_member_points(
-        self,
-        guild_id: int,
-        member_id: int,
-        action: int,
-        amount: int,
-    ) -> Coroutine[Any, Any, bytes]:
-        # Note: Points amount cannot be more than 100,000.
-        route = Route("PATCH", "/guilds/{guild_id}/members/{member_id}/points", guild_id=guild_id, member_id=member_id)
-        data = GEN_ENCODER.encode({"action": action, "amount": amount})
-        return self.request(route, data=data)
-
-    def modify_guild_member_score(
-        self,
-        guild_id: int,
-        member_id: int,
-        action: int,
-        amount: int,
-    ) -> Coroutine[Any, Any, bytes]:
-        # Note: Score amount cannot be more than 100,000.
-        route = Route("PATCH", "/guilds/{guild_id}/members/{member_id}/score", guild_id=guild_id, member_id=member_id)
-        data = GEN_ENCODER.encode({"action": action, "amount": amount})
-        return self.request(route, data=data)
-
-    def get_guild_member_ranking(
-        self,
-        guild_id: int,
-        user_id: int,
-        period: Literal["all", "month", "week"] = "all",
-    ) -> Coroutine[Any, Any, bytes]:
-        route = Route(
-            "GET",
-            "/guilds/{guild_id}/rankings/members/{user_id}/{time_range}",
-            guild_id=guild_id,
-            user_id=user_id,
-            time_range=period,
-        )
-        return self.request(route)
-
-    def get_guild_rankings(
-        self,
-        guild_id: int,
-        period: Literal["all", "month", "week"] = "all",
-        *,
-        offset: int = 0,
-    ) -> Coroutine[Any, Any, bytes]:
-        # Note: Pagination offset must be greater than or equal to 0.
-        route = Route("GET", "/guilds/{guild_id}/rankings/{time_range}", guild_id=guild_id, time_range=period)
-        params = {"offset": offset}
-        return self.request(route, params=params)
-
-    def get_user_profile(self, user_id: int) -> Coroutine[Any, Any, bytes]:
-        route = Route("GET", "/users/{user_id}/profile", user_id=user_id)
-        return self.request(route)
-
-    def get_store_listing(self, listing_id: str) -> Coroutine[Any, Any, bytes]:
-        route = Route("GET", "/store/listings/{listing_id}", listing_id=listing_id)
-        return self.request(route)
-
-
-# ==== User-facing client
-
-
-class Client:
-    """The client that is used to handle interaction with the Tatsu API.
-
-    Parameters
-    ----------
-    token: :class:`str`
-        The Tatsu API key that will be used to authorize all requests to it.
-    session: :class:`aiohttp.ClientSession`, optional
-        A web client session to use for connecting to the API. If provided, the library is not responsible for closing
-        it. If not provided, the client will create one.
-    """
-
-    def __init__(self, token: str, *, session: aiohttp.ClientSession | None = None) -> None:
-        self.http = HTTPClient(token, session=session)
-
-    async def __aenter__(self) -> Self:
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        await self.close()
-
-    async def close(self) -> None:
-        """Close the internal HTTP session."""
-
-        await self.http.close()
 
     async def get_member_points(self, guild_id: int, member_id: int) -> GuildMemberPoints:
         """Get a guild member's points.
@@ -649,8 +861,9 @@ class Client:
             The object holding the points information.
         """
 
-        data = await self.http.get_guild_member_points(guild_id, member_id)
-        return GUILD_MEMBER_POINTS_DECODER.decode(data)
+        route = _Route("GET", "/guilds/{guild_id}/members/{member_id}/points", guild_id=guild_id, member_id=member_id)
+        response: _GuildMemberPointsPayload = await self._request(route)
+        return GuildMemberPoints._from_json(response)
 
     async def update_member_points(self, guild_id: int, member_id: int, amount: int) -> GuildMemberPoints:
         """Modify a guild member's points and return an updated version.
@@ -675,8 +888,10 @@ class Client:
             raise ValueError(msg)
 
         action = ActionType.REMOVE if amount < 0 else ActionType.ADD
-        data = await self.http.modify_guild_member_points(guild_id, member_id, action.value, abs(amount))
-        return GUILD_MEMBER_POINTS_DECODER.decode(data)
+        route = _Route("PATCH", "/guilds/{guild_id}/members/{member_id}/points", guild_id=guild_id, member_id=member_id)
+        json_data = {"action": action, "amount": amount}
+        response: _GuildMemberPointsPayload = await self._request(route, json=json_data)
+        return GuildMemberPoints._from_json(response)
 
     async def update_member_score(self, guild_id: int, member_id: int, amount: int) -> GuildMemberScore:
         """Modify a guild member's score and return an updated version.
@@ -696,13 +911,15 @@ class Client:
             The object holding the updated score information.
         """
 
-        if amount == 0 or abs(amount) > 100_000:
+        if (amount == 0) or (abs(amount) > 100_000):
             msg = "Score amount to add or remove cannot be 0 and cannot more than 100,000 in either direction."
             raise ValueError(msg)
 
-        action = ActionType.REMOVE if amount < 0 else ActionType.ADD
-        data = await self.http.modify_guild_member_score(guild_id, member_id, action.value, abs(amount))
-        return GUILD_MEMBER_SCORE_DECODER.decode(data)
+        action = ActionType.REMOVE if (amount < 0) else ActionType.ADD
+        route = _Route("PATCH", "/guilds/{guild_id}/members/{member_id}/score", guild_id=guild_id, member_id=member_id)
+        json_data = {"action": action, "amount": amount}
+        response: _GuildMemberScorePayload = await self._request(route, json=json_data)
+        return GuildMemberScore._from_json(response)
 
     async def get_member_ranking(
         self,
@@ -727,8 +944,15 @@ class Client:
             The object holding the ranking information.
         """
 
-        data = await self.http.get_guild_member_ranking(guild_id, member_id, period)
-        return GUILD_MEMBER_RANKING_DECODER.decode(data)
+        route = _Route(
+            "GET",
+            "/guilds/{guild_id}/rankings/members/{user_id}/{time_range}",
+            guild_id=guild_id,
+            user_id=member_id,
+            time_range=period,
+        )
+        response: _GuildMemberRankingPayload = await self._request(route)
+        return GuildMemberRanking._from_json(response)
 
     async def get_guild_rankings(
         self,
@@ -736,7 +960,7 @@ class Client:
         period: Literal["all", "month", "week"] = "all",
         *,
         start: int = 1,
-        end: int | None = None,
+        end: Optional[int] = None,
     ) -> GuildRankings:
         """Get the rankings within a guild over some period of time.
 
@@ -748,7 +972,7 @@ class Client:
             The amount of time over which to consider the ranking, including all-time, last month, and last week.
         start: :class:`int`, default=1
             The first rank to start searching from.
-        end: :class:`int` | None, optional
+        end: Optional[:class:`int`], optional
             The last rank to retrieve. If not entered, API limit (per request) is automatically used - 100.
 
         Returns
@@ -776,23 +1000,33 @@ class Client:
 
         start -= 1  # Tatsu API is 0-indexed.
 
+        # NOTE: Pagination offset must be greater than or equal to 0.
+        route = _Route("GET", "/guilds/{guild_id}/rankings/{time_range}", guild_id=guild_id, time_range=period)
+
+        # TODO: Turn this into an async generator that yields Ranking objects. That's more ergonomic and avoids
+        # making a bunch of API requests up front if they aren't needed.
+
         # Just perform one request.
         if end is None:
-            data = await self.http.get_guild_rankings(guild_id, period, offset=start)
-            return GUILD_RANKINGS_DECODER.decode(data)
+            params = {"offset": start}
+            response = await self._request(route, params=params)
+            return GuildRankings._from_json(response)
+        else:
+            end -= 1  # Tatsu API is 0-indexed.
 
-        end -= 1  # Tatsu API is 0-indexed.
+            # Perform multiple requests if necessary and bring the rankings together in one object.
+            coros = [self._request(route, params={"offset": offset}) for offset in range(start, end, 100)]
+            results: list[_GuildRankingsPayload] = await asyncio.gather(*coros)
 
-        # Perform multiple requests if necessary and bring the rankings together in one object.
-        coros = [self.http.get_guild_rankings(guild_id, period, offset=offset) for offset in range(start, end, 100)]
-        results = await asyncio.gather(*coros)
-        rankings_list = [GUILD_RANKINGS_DECODER.decode(result) for result in results]
-        truncated_rankings = tuple(
-            ranking
-            for ranking in itertools.chain.from_iterable(item.rankings for item in rankings_list)
-            if ranking.rank in range(start + 1, end + 2)
-        )
-        return GuildRankings(str(guild_id), truncated_rankings)
+            resp_guild_id = results[0]["guild_id"] if results else str(guild_id)
+            truncated_rankings = (
+                ranking
+                for guild_rankings in results
+                for ranking in guild_rankings["rankings"]
+                if ranking["rank"] in range(start + 1, end + 2)
+            )
+
+            return GuildRankings(resp_guild_id, tuple(map(Ranking._from_json, truncated_rankings)))
 
     async def get_user(self, user_id: int) -> User:
         """Get a user's profile.
@@ -808,8 +1042,9 @@ class Client:
             The user's profile.
         """
 
-        data = await self.http.get_user_profile(user_id)
-        return USER_DECODER.decode(data)
+        route = _Route("GET", "/users/{user_id}/profile", user_id=user_id)
+        response: _UserPayload = await self._request(route)
+        return User._from_json(response)
 
     async def get_store_listing(self, listing_id: str) -> StoreListing:
         """Get information about a listing from the Tatsu store.
@@ -825,5 +1060,9 @@ class Client:
             The store listing information.
         """
 
-        data = await self.http.get_store_listing(listing_id)
-        return STORE_LISTING_DECODER.decode(data)
+        route = _Route("GET", "/store/listings/{listing_id}", listing_id=listing_id)
+        response: _StoreListingPayload = await self._request(route)
+        return StoreListing._from_json(response)
+
+
+# endregion --------
