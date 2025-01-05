@@ -2,18 +2,18 @@
 Tatsu API Wrapper
 -----------------
 
-A basic unofficial wrapper for the Tatsu API.
+A unofficial asynchronous wrapper for the Tatsu API.
 """
 
 from __future__ import annotations
 
-import asyncio
 import enum
 import logging
 import sys
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from importlib.metadata import version as im_version
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Optional, TypedDict, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Optional, TypedDict
 from urllib.parse import quote as uriquote
 
 import aiohttp
@@ -60,7 +60,6 @@ __all__ = (
     "BadRequest",
     "Forbidden",
     "NotFound",
-    "RateLimited",
     "TatsuServerError",
     # -- Enums
     "ActionType",
@@ -84,6 +83,8 @@ _log = logging.getLogger(__name__)
 
 _lockout_manager = FIFOLockout()
 
+_MAX_GUILD_RANKINGS_PER_REQ = 100
+
 
 # region -------- Exceptions --------
 
@@ -94,13 +95,6 @@ class TatsuException(Exception):
 
 class HTTPException(TatsuException):
     """Exception that's raised when a non-200 HTTP status code is returned.
-
-    Parameters
-    ----------
-    response: :class:`aiohttp.ClientResponse`
-        The HTTP response from the request.
-    message: Optional[Union[:class:`str`, dict[:class:`str`, Any]]]
-        The decoded response data.
 
     Attributes
     ----------
@@ -119,11 +113,16 @@ class HTTPException(TatsuException):
     code: int
     text: str
 
-    def __init__(self, response: aiohttp.ClientResponse, message: Optional[Union[str, dict[str, Any]]]) -> None:
+    def __init__(self, response: aiohttp.ClientResponse, message: Optional[dict[str, Any]]) -> None:
         self.response = response
         self.status = response.status
-        self.code = message.get("code", 0) if isinstance(message, dict) else 0
-        self.text = message.get("message", "") if isinstance(message, dict) else (message or "")
+
+        if message is not None:
+            self.code = message.get("code", 0)
+            self.text = message.get("message", "")
+        else:
+            self.code = 0
+            self.text = ""
 
         fmt = "{0.status} {0.reason} (error code: {1})"
         if len(self.text):
@@ -148,13 +147,6 @@ class Forbidden(HTTPException):
 
 class NotFound(HTTPException):
     """Exception that's raised when status code 404 occurs.
-
-    Subclass of :exc:`HTTPException`.
-    """
-
-
-class RateLimited(HTTPException):
-    """Exception that's raised when status code 429 occurs.
 
     Subclass of :exc:`HTTPException`.
     """
@@ -744,28 +736,20 @@ class Client:
         await self.close()
 
     async def _start_session(self) -> None:
-        """|coro|
-
-        Create an internal HTTP session for this client if necessary.
-        """
+        """Create an internal HTTP session for this client if necessary."""
 
         if (not self._session) or self._session.closed:
             self._session = aiohttp.ClientSession()
             self._own_session = True
 
     async def close(self) -> None:
-        """|coro|
+        """Close the internal HTTP session."""
 
-        Close the internal HTTP session.
-        """
-
-        if self._session and not self._session.closed and self._own_session:
+        if self._session and (not self._session.closed) and self._own_session:
             await self._session.close()
 
     async def _request(self, route: _Route, **kwargs: Any) -> Any:
-        """|coro|
-
-        Send an HTTP request to some endpoint in the Tatsu API.
+        """Send an HTTP request to some endpoint in the Tatsu API.
 
         Parameters
         ----------
@@ -781,49 +765,48 @@ class Client:
         kwargs["headers"] = headers
 
         await self._start_session()
-        assert self._session
+        assert self._session is not None, "The session should always be initialized"
 
         response: Optional[aiohttp.ClientResponse] = None
-        message: str | dict[str, Any] | None = None
-        for _try_num in range(1, 6):
+        message: dict[str, Any] | None = None
+        for _try in range(1, 6):
             async with _lockout_manager, self._session.request(route.method, route.url, **kwargs) as response:  # noqa: F811
-                # TODO: Actually benchmark to see if human_repr() is expensive.
                 if _log.isEnabledFor(logging.DEBUG):
                     _log.debug("%s %s has returned %d.", route.method, response.url.human_repr(), response.status)
 
                 resp_data = await response.json()
-                _log.debug(resp_data)
 
-                rl_limit = response.headers.get("X-RateLimit-Limit")
-                rl_remaining = response.headers.get("X-RateLimit-Remaining")
-                rl_reset = response.headers.get("X-RateLimit-Reset", 0.0)
-                rl_reset_dt = datetime.fromtimestamp(float(rl_reset), tz=timezone.utc).astimezone()
+                rl_limit = int(response.headers.get("X-RateLimit-Limit", 1))
+                rl_remaining = int(response.headers.get("X-RateLimit-Remaining", 0))
+                rl_reset = float(response.headers["X-RateLimit-Reset"])
+
+                rl_reset_dt = datetime.fromtimestamp(rl_reset, tz=timezone.utc).astimezone()
 
                 _log.debug(
-                    "Rate limit info: limit=%s, remaining=%s, reset=%s (tries=%s)",
+                    "Rate limit info: limit=%s, remaining=%s, reset=%s (try=%s)",
                     rl_limit,
                     rl_remaining,
                     rl_reset_dt,
-                    _try_num,
+                    _try,
                 )
 
-                # Stop hitting the API if "remaining" is 0, even without a 429.
-                if response.status != 429 and rl_remaining == "0":
+                # Preemptively sleep on the rate limit if "remaining" is 0 before a 429.
+                if response.status != 429 and rl_remaining == 0:
                     now = datetime.now(tz=timezone.utc).astimezone()
                     rl_reset_after = (rl_reset_dt - now).total_seconds()
-                    _log.info("Emptied the rate limit early. Waiting for %s seconds for reset.", rl_reset_after)
+                    _log.warning("Emptied the rate limit early. Waiting for %s seconds for reset.", rl_reset_after)
                     _lockout_manager.lockout_for(rl_reset_after)
 
                 # The request succeeded.
                 if 300 > response.status >= 200:
+                    _log.debug("%s %s has received %s", route.method, route.url, resp_data)
                     return resp_data
 
-                # Stop hitting the API on a 429.
+                # Sleep on the rate limit after a 429.
                 if response.status == 429:
                     now = datetime.now(tz=timezone.utc).astimezone()
-                    _log.debug("Comparison of timestamps (now vs. ratelimit reset time): %s vs %s", now, rl_reset_dt)
                     rl_reset_after = (rl_reset_dt - now).total_seconds()
-                    _log.info("Hit a rate limit. Waiting for %s seconds for reset.", rl_reset_after)
+                    _log.warning("Hit a rate limit. Waiting for %s seconds for reset.", rl_reset_after)
                     _lockout_manager.lockout_for(rl_reset_after)
                     continue
 
@@ -840,6 +823,8 @@ class Client:
 
         if response is not None:
             _log.debug("Reached maximum number of retries.")
+            if response.status >= 500:
+                raise TatsuServerError(response, message)
             raise HTTPException(response, message)
 
         msg = "Unreachable code in HTTP handling."
@@ -881,6 +866,11 @@ class Client:
         -------
         :class:`GuildMemberPoints`
             The object holding the updated points information.
+
+        Raises
+        ------
+        ValueError
+            If the points amount is equal to 0 or greater than 100,000 in absolute value.
         """
 
         if amount == 0 or abs(amount) > 100_000:
@@ -909,6 +899,11 @@ class Client:
         -------
         :class:`GuildMemberScore`
             The object holding the updated score information.
+
+        Raises
+        ------
+        ValueError
+            If the score amount is equal to 0 or greater than 100,000 in absolute value.
         """
 
         if (amount == 0) or (abs(amount) > 100_000):
@@ -954,79 +949,77 @@ class Client:
         response: _GuildMemberRankingPayload = await self._request(route)
         return GuildMemberRanking._from_json(response)
 
-    async def get_guild_rankings(
+    async def guild_rankings(
         self,
         guild_id: int,
         period: Literal["all", "month", "week"] = "all",
         *,
         start: int = 1,
         end: Optional[int] = None,
-    ) -> GuildRankings:
-        """Get the rankings within a guild over some period of time.
+    ) -> AsyncGenerator[Ranking]:
+        """Return an asynchronous generator that iterates over the rankings in a guild over a period of time.
 
         Parameters
         ----------
         guild_id: :class:`int`
             The ID of the Discord guild.
         period: Literal["all", "month", "week"], default="all"
-            The amount of time over which to consider the ranking, including all-time, last month, and last week.
+            The amount of time over which to consider the ranking, including all time, last month, and last week.
         start: :class:`int`, default=1
-            The first rank to start searching from.
+            The first rank to start searching from (inclusive).
         end: Optional[:class:`int`], optional
-            The last rank to retrieve. If not entered, API limit (per request) is automatically used - 100.
+            The last rank to retrieve (inclusive). If not given, `start` + 100 is used, since 100 is the API limit
+            (per request).
 
-        Returns
-        -------
-        :class:`GuildRankings`
-            The object holding a list of rankings.
+        Yields
+        ------
+        :class:`Ranking`
+            A parsed ranking object.
 
         Raises
         ------
         ValueError
-            If there's something wrong with the given start and end values.
+            If the given start and end values are not in the expected ranges.
         """
 
-        # Check that start and end are valid.
         if start < 1:
             msg = "Start parameter must be greater than or equal to 1."
             raise ValueError(msg)
-        if end:
+
+        if end is not None:
             if end < 1:
                 msg = "End parameter must be greater than or equal to 1."
                 raise ValueError(msg)
             if end <= start:
-                msg = "End must be greater than start if used."
+                msg = "End must be greater than start."
                 raise ValueError(msg)
 
-        start -= 1  # Tatsu API is 0-indexed.
+        if end is None:
+            end = start + _MAX_GUILD_RANKINGS_PER_REQ
 
-        # NOTE: Pagination offset must be greater than or equal to 0.
+        # Tatsu API is 0-indexed.
+        start -= 1
+        end -= 1
+
         route = _Route("GET", "/guilds/{guild_id}/rankings/{time_range}", guild_id=guild_id, time_range=period)
 
-        # TODO: Turn this into an async generator that yields Ranking objects. That's more ergonomic and avoids
-        # making a bunch of API requests up front if they aren't needed.
+        # Paginate over the rankings in increments of 100.
+        for offset in range(start, end, _MAX_GUILD_RANKINGS_PER_REQ):
+            response: _GuildRankingsPayload = await self._request(route, params={"offset": offset})
 
-        # Just perform one request.
-        if end is None:
-            params = {"offset": start}
-            response = await self._request(route, params=params)
-            return GuildRankings._from_json(response)
-        else:
-            end -= 1  # Tatsu API is 0-indexed.
+            raw_rankings = response["rankings"]
 
-            # Perform multiple requests if necessary and bring the rankings together in one object.
-            coros = [self._request(route, params={"offset": offset}) for offset in range(start, end, 100)]
-            results: list[_GuildRankingsPayload] = await asyncio.gather(*coros)
+            if (end - offset) < _MAX_GUILD_RANKINGS_PER_REQ:
+                bounded_raw_rankings = raw_rankings[: end - offset]
+            else:
+                bounded_raw_rankings = raw_rankings
 
-            resp_guild_id = results[0]["guild_id"] if results else str(guild_id)
-            truncated_rankings = (
-                ranking
-                for guild_rankings in results
-                for ranking in guild_rankings["rankings"]
-                if ranking["rank"] in range(start + 1, end + 2)
-            )
+            for ranking in bounded_raw_rankings:
+                yield Ranking._from_json(ranking)
 
-            return GuildRankings(resp_guild_id, tuple(map(Ranking._from_json, truncated_rankings)))
+            # No data is left after this iteration.
+            if len(raw_rankings) < _MAX_GUILD_RANKINGS_PER_REQ:
+                break
 
     async def get_user(self, user_id: int) -> User:
         """Get a user's profile.

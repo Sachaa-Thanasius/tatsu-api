@@ -56,8 +56,9 @@ asyncio_default_fixture_loop_scope = "module"
 # -------- Linter config
 
 [tool.ruff]
-# NOTE: tool.ruff.target-version, when left blank, defaults to the contents of project.requires-python. Let it be.
 line-length = 120
+
+[tool.ruff.lint]
 select = [
     "F",
     "E",
@@ -123,7 +124,7 @@ ignore = [
 
     # ---- Project-specific
     # Readability
-    "RET505", # else after return
+    "RET505", # el(se|if) after return.
 ]
 unfixable = [
     "ERA", # Prevent unlikely erroneous deletion.
