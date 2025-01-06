@@ -18,7 +18,7 @@ from urllib.parse import quote as uriquote
 
 import aiohttp
 
-from ._lockout import FIFOLockout
+from ._async_utils import FIFOLockout
 
 
 if sys.version_info >= (3, 11):
@@ -81,7 +81,7 @@ __all__ = (
 
 _log = logging.getLogger(__name__)
 
-_lockout_manager = FIFOLockout()
+_lockout = FIFOLockout()
 
 _MAX_GUILD_RANKINGS_PER_REQ = 100
 
@@ -770,56 +770,57 @@ class Client:
         response: Optional[aiohttp.ClientResponse] = None
         message: dict[str, Any] | None = None
         for _try in range(1, 6):
-            async with _lockout_manager, self._session.request(route.method, route.url, **kwargs) as response:  # noqa: F811
-                if _log.isEnabledFor(logging.DEBUG):
-                    _log.debug("%s %s has returned %d.", route.method, response.url.human_repr(), response.status)
+            async with _lockout:  # noqa: SIM117
+                async with self._session.request(route.method, route.url, **kwargs) as response:
+                    if _log.isEnabledFor(logging.DEBUG):
+                        _log.debug("%s %s has returned %d.", route.method, response.url.human_repr(), response.status)
 
-                resp_data = await response.json()
+                    resp_data = await response.json()
 
-                rl_limit = int(response.headers.get("X-RateLimit-Limit", 1))
-                rl_remaining = int(response.headers.get("X-RateLimit-Remaining", 0))
-                rl_reset = float(response.headers["X-RateLimit-Reset"])
+                    rl_limit = int(response.headers.get("X-RateLimit-Limit", 1))
+                    rl_remaining = int(response.headers.get("X-RateLimit-Remaining", 0))
+                    rl_reset = float(response.headers["X-RateLimit-Reset"])
 
-                rl_reset_dt = datetime.fromtimestamp(rl_reset, tz=timezone.utc).astimezone()
+                    rl_reset_dt = datetime.fromtimestamp(rl_reset, tz=timezone.utc).astimezone()
 
-                _log.debug(
-                    "Rate limit info: limit=%s, remaining=%s, reset=%s (try=%s)",
-                    rl_limit,
-                    rl_remaining,
-                    rl_reset_dt,
-                    _try,
-                )
+                    _log.debug(
+                        "Rate limit info: limit=%s, remaining=%s, reset=%s (try=%s)",
+                        rl_limit,
+                        rl_remaining,
+                        rl_reset_dt,
+                        _try,
+                    )
 
-                # Preemptively sleep on the rate limit if "remaining" is 0 before a 429.
-                if response.status != 429 and rl_remaining == 0:
-                    now = datetime.now(tz=timezone.utc).astimezone()
-                    rl_reset_after = (rl_reset_dt - now).total_seconds()
-                    _log.warning("Emptied the rate limit early. Waiting for %s seconds for reset.", rl_reset_after)
-                    _lockout_manager.lockout_for(rl_reset_after)
+                    # Preemptively sleep on the rate limit if "remaining" is 0 before a 429.
+                    if response.status != 429 and rl_remaining == 0:
+                        now = datetime.now(tz=timezone.utc).astimezone()
+                        rl_reset_after = (rl_reset_dt - now).total_seconds()
+                        _log.warning("Emptied the rate limit early. Waiting for %s seconds for reset.", rl_reset_after)
+                        _lockout.lock_for(rl_reset_after)
 
-                # The request succeeded.
-                if 300 > response.status >= 200:
-                    _log.debug("%s %s has received %s", route.method, route.url, resp_data)
-                    return resp_data
+                    # The request succeeded.
+                    if 300 > response.status >= 200:
+                        _log.debug("%s %s has received %s", route.method, route.url, resp_data)
+                        return resp_data
 
-                # Sleep on the rate limit after a 429.
-                if response.status == 429:
-                    now = datetime.now(tz=timezone.utc).astimezone()
-                    rl_reset_after = (rl_reset_dt - now).total_seconds()
-                    _log.warning("Hit a rate limit. Waiting for %s seconds for reset.", rl_reset_after)
-                    _lockout_manager.lockout_for(rl_reset_after)
-                    continue
+                    # Sleep on the rate limit after a 429.
+                    if response.status == 429:
+                        now = datetime.now(tz=timezone.utc).astimezone()
+                        rl_reset_after = (rl_reset_dt - now).total_seconds()
+                        _log.warning("Hit a rate limit. Waiting for %s seconds for reset.", rl_reset_after)
+                        _lockout.lock_for(rl_reset_after)
+                        continue
 
-                if response.status == 400:
-                    raise BadRequest(response, message)
-                if response.status == 403:
-                    raise Forbidden(response, message)
-                if response.status == 404:
-                    raise NotFound(response, message)
-                if response.status >= 500:
-                    raise TatsuServerError(response, message)
+                    if response.status == 400:
+                        raise BadRequest(response, message)
+                    if response.status == 403:
+                        raise Forbidden(response, message)
+                    if response.status == 404:
+                        raise NotFound(response, message)
+                    if response.status >= 500:
+                        raise TatsuServerError(response, message)
 
-                raise HTTPException(response, message)
+                    raise HTTPException(response, message)
 
         if response is not None:
             _log.debug("Reached maximum number of retries.")

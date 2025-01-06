@@ -55,7 +55,7 @@ class FIFOLockout:
         extra = "unlocked" if not self._lockouts else f"locked, timestamps={self._lockouts:!r}"
         return f"<{res[1:-1]} [{extra}]>"
 
-    def lockout_for(self, seconds: float, /) -> None:
+    def lock_for(self, seconds: float, /) -> None:
         """Lock a resource for an amount of time."""
         task = asyncio.create_task(asyncio.sleep(seconds, None))
         self._lockouts.add(task)

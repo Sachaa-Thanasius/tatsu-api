@@ -114,6 +114,7 @@ async def test_lockout(client: tatsu.Client):
     import asyncio
     from itertools import chain
 
+    # The limit is 60/min. This sends off 80.
     coros = chain.from_iterable(
         (client.get_user(VALID_USER_ID), client.get_member_ranking(VALID_GUILD_ID, VALID_USER_ID, "all"))
         for _ in range(40)
